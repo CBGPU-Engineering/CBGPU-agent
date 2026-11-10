@@ -51,12 +51,22 @@ private conversations, research notes, user files or host shell.
 | `cbgpu/cbgpu-chat` | General conversation, Qwen2.5 7B |
 | `cbgpu/cbgpu-coder` | Coding and tool proposals, Qwen2.5 Coder 7B; default |
 | `cbgpu/cbgpu-pro` | Longer-form writing and analysis, Qwen2.5 14B |
+| `cbgpu/cbgpu-oss` | Native reasoning and tool proposals, GPT-OSS 20B |
 
 These are local models with an 8,192-token context window and up to 2,048 output
-tokens per call. They can make mistakes. Tool proposals do not execute on the
+tokens per call (4,096 for GPT-OSS). They can make mistakes. Tool proposals do not execute on the
 CBGPU server: the local OpenCode engine checks permissions and runs approved tools.
-The API provides SSE transport with keep-alive comments while queued; completed
-answers arrive as a chunk, rather than simulated token-by-token output.
+The API streams real visible-answer deltas during inference, with keep-alive comments while queued.
+Tool proposals are delivered after validation. `reasoning_effort` accepts low, medium or high; GPT-OSS uses native reasoning and Qwen high runs a draft and review pass.
+
+## Web tools
+
+The bundled read-only MCP server offers `web_search` and `read_web_page` through
+the authenticated CBGPU API. Queries are sent to DuckDuckGo, and source pages are
+read without authentication or browser JavaScript. Internal/private addresses,
+redirects into private networks and credential-bearing URLs are blocked.
+OpenCode asks before these tool calls under the default permission policy.
+Treat search results as reference material and check the original sources.
 
 ## Configuration and boundaries
 

@@ -14,8 +14,8 @@ if(args[0]==='login'){
 }
 const key=process.env.CBGPU_API_KEY||read().key;if(!key){console.error('Run cbgpu login first. Create a key at https://cbgpu.com/ai?tab=api');process.exit(1)}
 // Do not print keys or place them in argv/project configuration. The child receives a private environment.
-const require=createRequire(import.meta.url);let bin;try{bin=require.resolve('opencode-ai/bin/opencode')}catch{const pkg=require.resolve('opencode-ai/package.json');bin=path.join(path.dirname(pkg),'bin/opencode')}
+const require=createRequire(import.meta.url);const pkgPath=require.resolve('opencode-ai/package.json');const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));const bin=path.join(path.dirname(pkgPath),typeof pkg.bin==='string'?pkg.bin:pkg.bin.opencode);
 const env={...process.env,CBGPU_API_KEY:key,OPENCODE_CONFIG_CONTENT:JSON.stringify(agentConfig(baseURL)),OPENCODE_DISABLE_AUTOUPDATE:'1',OPENCODE_DISABLE_DEFAULT_PLUGINS:'1'};
 if(!args.length)args.push('--agent','cbgpu');else if(args[0]==='run'&&!args.includes('--agent'))args.push('--agent','cbgpu');
 if(!args.includes('--pure'))args.push('--pure');
-const child=spawn(process.execPath,[bin,...args],{env,stdio:'inherit'});child.on('exit',(code,signal)=>{if(signal)process.kill(process.pid,signal);else process.exitCode=code??1});child.on('error',()=>{console.error('Could not start the OpenCode engine. Reinstall CBGPU Agent.');process.exitCode=1});for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>child.kill(signal));
+const child=spawn(bin,args,{env,stdio:'inherit'});child.on('exit',(code,signal)=>{if(signal)process.kill(process.pid,signal);else process.exitCode=code??1});child.on('error',()=>{console.error('Could not start the OpenCode engine. Reinstall CBGPU Agent.');process.exitCode=1});for(const signal of ['SIGINT','SIGTERM'])process.on(signal,()=>child.kill(signal));
