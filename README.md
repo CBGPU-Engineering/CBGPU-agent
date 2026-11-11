@@ -7,7 +7,7 @@
 CBGPU Agent is a terminal coding assistant connected to the school's local AI
 service. It uses the MIT-licensed **OpenCode** engine, with CBGPU models,
 account-scoped API keys and approval prompts for edits and shell commands.
-It can inspect a project, explain code, propose changes and run checks after approval.
+It can inspect a project, explain code, propose changes and run checks after approval. For a fix, it reviews the diff, runs the relevant checks with approval, and reports which checks passed, failed, or could not run.
 
 The project files and commands stay on the computer running the CLI. Selected
 text, tool descriptions and tool results are sent to the CBGPU API for inference.
