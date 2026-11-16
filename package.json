@@ -15,7 +15,8 @@
     "check": "tsc --noEmit && node scripts/check-source-languages.ts",
     "build": "tsc -p tsconfig.build.json",
     "prepare": "npm run build",
-    "test:compiled": "node --test test/compiled.test.ts"
+    "test:compiled": "node --test test/compiled.test.ts",
+    "build:native": "npm run build && node scripts/build-native.ts"
   },
   "dependencies": {
     "opencode-ai": "1.19.5"

@@ -107,3 +107,50 @@ The maintained CLI, local web MCP bridge, configuration and tests use strict
 TypeScript. `npm run check` validates every source and `npm run build` emits the
 Node.js distribution into ignored `dist/` files. Installed commands run compiled
 output, so they do not rely on TypeScript stripping inside `node_modules`.
+
+## Native Rust candidate
+
+The candidate moves CBGPU's own authentication, provider configuration and
+process supervision into Rust. Its default still launches the pinned MIT-licensed
+OpenCode dependency, preserving the existing TUI, sessions, LSP and extended
+commands. OpenCode itself remains upstream software; it has not been rewritten
+in Rust. The existing npm entry is unchanged until cross-platform validation and
+release review.
+
+```bash
+cargo test --locked
+cargo clippy --all-targets --locked -- -D warnings
+npm run build:native
+node dist/bin/native.js --help
+node dist/bin/native.js login
+node dist/bin/native.js
+node dist/bin/native.js --native
+node dist/bin/native.js --native run "Read README.md and explain this project"
+```
+
+The build packages only the current OS/architecture, includes Rust dependency
+license texts and records the executable's SHA-256. The thin TypeScript launcher
+resolves the installed OpenCode executable, verifies the native artifact hash and
+never downloads executables. Native CI builds on Linux, macOS and Windows. No
+package is published by building the candidate.
+
+`--native` explicitly selects the experimental all-native coding loop. It talks
+directly to CBGPU's streaming API and implements eight tools and approvals in
+Rust. It supports the four CBGPU models, `--effort low|medium|high`, immediate
+visible-answer streaming, validated incremental tool calls, read-only `run` and
+interactive changes. Each task starts a fresh conversation with at most twelve
+model/tool rounds. This mode has text prompts rather than OpenCode's full TUI;
+OpenCode session persistence/resume, LSP and slash commands remain available in
+the default upstream mode.
+
+The native loop defaults to denying approvals. Edits require a prior read and an
+unchanged file; staged writes preserve permissions. Credential paths/private
+keys are denied, known secrets are redacted from proposals/results, and saved
+keys are bound to the API origin. Incomplete or truncated inference cannot
+execute partial tools. It reports actual changed files and command exit codes.
+
+These are application safeguards, not an OS sandbox. Approved shell commands
+have the current user's permissions. Review commands before approving them and
+use a restricted account/container for untrusted projects. There is no automatic
+publishing, paid-provider fallback or added telemetry. `web-mcp` exposes only the
+two authenticated public web tools and never local files or shell commands.
