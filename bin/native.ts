@@ -12,6 +12,9 @@ try{
   const digest=createHash('sha256').update(await readFile(binary)).digest('hex');if(digest!==manifest.sha256[platform])throw Error('Native artifact checksum mismatch. Reinstall the verified release.');
  }
  const metadata=await lstat(binary);if(!metadata.isFile()||metadata.isSymbolicLink())throw Error('Native Agent executable must be a regular file.');
- const require=createRequire(import.meta.url);const pkgPath=require.resolve('opencode-ai/package.json');const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));const engine=path.resolve(path.dirname(pkgPath),typeof pkg.bin==='string'?pkg.bin:pkg.bin.opencode);
- const child=spawn(binary,process.argv.slice(2),{stdio:'inherit',shell:false,windowsHide:false,env:{...process.env,CBGPU_AGENT_OPENCODE_PATH:engine}});for(const signal of ['SIGTERM','SIGINT'] as const)process.on(signal,()=>{child.kill(signal)});child.on('error',()=>{console.error('Cannot start the native CBGPU Agent executable.');process.exitCode=1});child.on('exit',(code,signal)=>{process.exitCode=code??(signal?1:0)});
+ const args=process.argv.slice(2);const env={...process.env};
+ if(args[0]!=='--native'&&!['--help','help','login','logout','models','web-mcp'].includes(args[0]||'')){
+  const require=createRequire(import.meta.url);const pkgPath=require.resolve('opencode-ai/package.json');const pkg=JSON.parse(fs.readFileSync(pkgPath,'utf8'));env.CBGPU_AGENT_OPENCODE_PATH=path.resolve(path.dirname(pkgPath),typeof pkg.bin==='string'?pkg.bin:pkg.bin.opencode);
+ }
+ const child=spawn(binary,process.argv.slice(2),{stdio:'inherit',shell:false,windowsHide:false,env});for(const signal of ['SIGTERM','SIGINT'] as const)process.on(signal,()=>{child.kill(signal)});child.on('error',()=>{console.error('Cannot start the native CBGPU Agent executable.');process.exitCode=1});child.on('exit',(code,signal)=>{process.exitCode=code??(signal?1:0)});
 }catch(error){console.error(error instanceof Error&&error.message.startsWith('ENOENT')?'Native candidate is not packaged for this platform. Build it with npm run build:native; the published release remains unchanged.':error instanceof Error?error.message:'Cannot locate native Agent.');process.exitCode=1}

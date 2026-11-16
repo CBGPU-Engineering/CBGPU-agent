@@ -154,3 +154,15 @@ have the current user's permissions. Review commands before approving them and
 use a restricted account/container for untrusted projects. There is no automatic
 publishing, paid-provider fallback or added telemetry. `web-mcp` exposes only the
 two authenticated public web tools and never local files or shell commands.
+
+Native review CI also runs Linux ARM64 and Apple Silicon alongside the three
+x64 targets. Successful jobs upload immutable archives with an executable,
+checksum launcher, Apache and OpenCode licenses, Rust dependency notices and
+exact source/workflow metadata. `npm run package:native` verifies an extracted
+archive and rejects a tampered checksum. These archives do not bundle the
+upstream OpenCode executable: the npm dependency provides it for default TUI
+mode. Standalone Rust users can explicitly set an absolute
+`CBGPU_AGENT_OPENCODE_PATH` to their installed upstream executable, or select
+`--native` for the experimental independent engine. No executable is downloaded
+by the candidate launcher. Unsupported native platforms keep the existing npm
+command; native activation and package publication require release review.

@@ -1,0 +1,30 @@
+/** Assemble a review artifact from an explicit public-file allowlist. No release/npm writes. */
+import {spawnSync} from 'node:child_process';
+import {readFile,writeFile,mkdir,copyFile,chmod,lstat,rm} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import path from 'node:path';
+const version='0.2.0',platform=process.platform+'-'+process.arch;
+const supported=['linux-x64','linux-arm64','darwin-x64','darwin-arm64','win32-x64'];
+if(!supported.includes(platform))throw Error('No candidate artifact verification for this platform. Keep using the existing Node release.');
+const nativeName=process.platform==='win32'?'cbgpu.exe':'cbgpu';
+const revision=process.env.GITHUB_SHA||spawnSync('git',['rev-parse','HEAD'],{encoding:'utf8',shell:false}).stdout?.trim();
+if(!revision||!/^[0-9a-f]{40}$/.test(revision))throw Error('Cannot identify exact candidate source revision.');
+const sourceManifest=JSON.parse(await readFile('dist/native/manifest.json','utf8')) as {version:string;sha256:Record<string,string>};
+const bytes=await readFile(path.join('dist/native',platform,nativeName));
+const sha256=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
+if(sourceManifest.version!==version||sourceManifest.sha256[platform]!==sha256(bytes))throw Error('Candidate executable does not match its checksum manifest.');
+const output=path.resolve('release-candidate'),stage=path.join(output,'stage');
+await rm(stage,{recursive:true,force:true});await mkdir(stage,{recursive:true});
+const publicFiles=['LICENSE','OPENCODE-LICENSE','README.md','dist/bin/native.js','dist/native/THIRD_PARTY_NOTICES.txt',path.join('dist/native',platform,nativeName)];
+for(const file of publicFiles){const info=await lstat(file);if(!info.isFile()||info.isSymbolicLink())throw Error('Candidate input must be a regular public file: '+file);const destination=path.join(stage,file);await mkdir(path.dirname(destination),{recursive:true});await copyFile(file,destination);if(file.endsWith(nativeName)||file.endsWith('.js'))await chmod(destination,0o755);}
+await writeFile(path.join(stage,'dist/native/manifest.json'),JSON.stringify({version,sha256:{[platform]:sha256(bytes)}},null,2)+'\n');
+const provenance={version,platform,source:{repository:'CBGPU-Engineering/CBGPU-agent',commit:revision},workflow:{run_id:process.env.GITHUB_RUN_ID||null,run_attempt:process.env.GITHUB_RUN_ATTEMPT||null},binary_sha256:sha256(bytes),status:'candidate-not-published'};
+await writeFile(path.join(stage,'candidate.json'),JSON.stringify(provenance,null,2)+'\n');
+const archiveName=`cbgpu-${version}-${platform}-${revision}.tar.gz`;
+const packed=spawnSync('tar',['-czf',path.join(output,archiveName),'-C',stage,'.'],{stdio:'inherit',shell:false});
+if(packed.status!==0)throw Error('Could not archive candidate executable and notices.');
+const digest=sha256(await readFile(path.join(output,archiveName)));
+await writeFile(path.join(output,'SHA256SUMS'),digest+'  '+archiveName+'\n');
+await writeFile(path.join(output,'candidate.json'),JSON.stringify({...provenance,archive:archiveName,archive_sha256:digest},null,2)+'\n');
+await rm(stage,{recursive:true,force:true});
+console.log(JSON.stringify({archive:archiveName,sha256:digest,platform,commit:revision}));

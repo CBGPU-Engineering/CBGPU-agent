@@ -20,9 +20,19 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-15-intel, windows-latest]
+        include:
+          - os: ubuntu-latest
+            platform: linux-x64
+          - os: macos-15-intel
+            platform: darwin-x64
+          - os: windows-latest
+            platform: win32-x64
+          - os: ubuntu-24.04-arm
+            platform: linux-arm64
+          - os: macos-15
+            platform: darwin-arm64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
@@ -36,3 +46,15 @@ jobs:
       - run: npm run check
       - run: npm run build:native
       - run: node dist/bin/native.js --help
+      - run: npm run package:native
+      - name: Upload immutable native review bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cbgpu-agent-native-${{ matrix.platform }}-${{ github.sha }}-${{ github.run_attempt }}
+          path: |
+            release-candidate/*.tar.gz
+            release-candidate/SHA256SUMS
+            release-candidate/candidate.json
+          if-no-files-found: error
+          retention-days: 30
+          overwrite: false
