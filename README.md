@@ -16,7 +16,7 @@ This is not Anthropic Claude Code and does not include a Claude subscription.
 
 ## Getting started
 
-Install Node.js 22 or later, then:
+Install Node.js 22.18 or later, then:
 
 ```bash
 npm install -g github:CBGPU-Engineering/CBGPU-agent
@@ -88,7 +88,8 @@ instructions and commands before allowing them.
 ```bash
 npm ci
 npm test
-node bin/cbgpu.mjs --help
+npm run build
+node dist/bin/cbgpu.js --help
 ```
 
 The launcher and tests have been developed on Linux. OpenCode supplies its own
@@ -100,3 +101,9 @@ The CBGPU launcher and configuration are [Apache-2.0](./LICENSE).
 The OpenCode engine remains [MIT](./OPENCODE-LICENSE), copyright its upstream
 authors. Its source is [anomalyco/opencode](https://github.com/anomalyco/opencode).
 Dependencies retain their own licenses.
+
+
+The maintained CLI, local web MCP bridge, configuration and tests use strict
+TypeScript. `npm run check` validates every source and `npm run build` emits the
+Node.js distribution into ignored `dist/` files. Installed commands run compiled
+output, so they do not rely on TypeScript stripping inside `node_modules`.
