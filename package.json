@@ -1,7 +1,6 @@
 {
-  "name": "@cbgpu/agent",
+  "name": "@cbgpu-engineering/agent",
   "version": "0.1.0",
-  "private": true,
   "description": "CBGPU coding agent powered by the MIT-licensed OpenCode engine",
   "type": "module",
   "bin": {
@@ -37,5 +36,8 @@
     "LICENSE",
     "OPENCODE-LICENSE",
     "README.md"
-  ]
+  ],
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
 }
