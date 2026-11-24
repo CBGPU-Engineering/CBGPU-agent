@@ -1,4 +1,6 @@
-# CBGPU Agent
+# OpenCode for CBGPU
+
+The OpenClaw and Hermes installer lives in [CBGPU Agent Setup](https://github.com/CBGPU-Engineering/CBGPU-agent-setup).
 
 [![Node.js](https://img.shields.io/badge/Node.js-22%2B-339933?logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![OpenCode](https://img.shields.io/badge/Engine-OpenCode%201.19.5-191F28)](https://github.com/anomalyco/opencode)
@@ -19,7 +21,7 @@ This is not Anthropic Claude Code and does not include a Claude subscription.
 Install Node.js 22.18 or later, then:
 
 ```bash
-npm install -g github:CBGPU-Engineering/CBGPU-agent
+npm install -g github:CBGPU-Engineering/OpenCode-for-CBGPU
 cbgpu login
 cd path/to/your/project
 cbgpu
@@ -182,75 +184,3 @@ mode. Standalone Rust users can explicitly set an absolute
 `--native` for the experimental independent engine. No executable is downloaded
 by the candidate launcher. Unsupported native platforms keep the existing npm
 command; native activation and package publication require release review.
-
-## Install OpenClaw or Hermes with CBGPU
-
-Download the matching **CBGPU Agent Setup** executable from
-[Releases](https://github.com/CBGPU-Engineering/CBGPU-agent/releases). On macOS,
-open the app inside the archive. The executable opens a local browser setup.
-After setup, close it with **설치 도우미 닫기** and remove the downloaded file
-if desired. The chosen agent and its local configuration are installed
-separately. The completion screen identifies the manual launcher.
-
-Run the setup program from a desktop session with Node.js 22.18 or newer.
-
-```bash
-cbgpu setup
-```
-
-The setup opens a local browser window on Windows, macOS, and Linux. Select an
-agent, create an API key from [CBGPU AI](https://cbgpu.com/ai?tab=api), then
-check the available models. Qwen3.8 is selected first when the API reports a
-compatible model. OpenClaw needs 16,000 context tokens. Hermes needs 64,000.
-OpenClaw computer use additionally requires a model with image input.
-
-- Choose **OpenClaw** for tasks that move between websites and applications.
-- Choose **Hermes** for longer workflows you want to resume and procedures
-  you want the agent to retain as reusable skills.
-
-The installer includes the app icons from [OpenClaw](https://github.com/openclaw/openclaw)
-and [Hermes Agent](https://github.com/NousResearch/hermes-agent).
-Their original notices are bundled in `assets/setup`.
-
-Each agent uses a separate CBGPU profile. Choose the access you need for files,
-terminal, browser, desktop, scheduled work, and messaging. Terminal and desktop
-access can reach data available to the operating system user. Stop the agent in
-the setup window when you need to revoke a running session's access.
-
-Enable **로그인·계정 만들기** if you want the agent to sign in or submit signup
-forms for apps and sites you name, including new services. The selection adds
-instructions to the profile workspace. Browser or desktop access supplies the
-actual controls. Hermes can use its local credential vault for supported sites.
-Complete credential entry and provider verification in the app or site when
-they require your input.
-
-On Linux and macOS, Hermes can use session-only sudo authentication when shell
-access is enabled. Enter the password into the local setup window when starting
-Hermes. The installer passes it to the running process. Hermes still applies
-its command approval settings.
-
-Both agents accept tasks through a private Telegram bot. Setup uses a bot
-from [BotFather](https://t.me/BotFather) and your
-numeric Telegram user ID. The installer checks the bot's identity. Start the
-agent and open a private conversation with that bot. The computer must stay
-online to receive messages.
-
-Enable **컴퓨터에 로그인하면 자동 시작** to start the saved Telegram agent when
-you sign in. This uses the current user's desktop startup settings. Open the
-setup screen again to stop the running agent or turn off future automatic
-starts. Enter the sudo password manually for a session that needs it.
-If you enable both agents at login, configure a different bot for each.
-
-**에이전트가 실행 중일 때 절전 방지** holds an operating-system sleep
-assertion for the running agent. On Windows, set the plugged-in lid action
-in Power Options. macOS closed-display mode requires power and an external
-display. On Linux, the lid lock applies when systemd manages the lid.
-
-Enable **필요한 스킬 설치** and shell access to let the agent look up and install
-skills for its profile. The runtimes apply their own skill trust checks and
-command approval rules.
-
-Desktop control follows the operating system's permissions. Follow the
-[OpenClaw computer-use guide](https://docs.openclaw.ai/nodes/computer-use) or the
-[Hermes computer-use guide](https://hermes-agent.nousresearch.com/docs/user-guide/features/computer-use)
-to grant the appropriate permissions and run the platform diagnostics.
