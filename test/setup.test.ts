@@ -131,26 +131,61 @@ test('only a configured Telegram profile may resume at login and does so once', 
     });
     const payload = { agent:'openclaw', model:'cbgpu-qwen38', key, accepted:true, autoStart:true,
       permissions: { shell:true, skills:true } };
-    assert.equal(await resumeSaved(), false);
+    assert.deepEqual(await resumeSaved(), {active:false,pending:false});
     assert.equal((await request('/install', payload)).status, 400);
     assert.equal((await request('/install', { ...payload, token, user:'111' })).status, 200);
-    assert.deepEqual(enrolled, [true]);
+    assert.equal((await request('/install', { ...payload, agent:'hermes', token, user:'111' })).status, 400);
+    assert.equal((await request('/install', { ...payload, agent:'hermes', token:token.replace('123456789', '987654321'), user:'111' })).status, 200);
+    assert.deepEqual(enrolled, [true, true]);
     assert.match(await readFile(path.join(root, 'openclaw', 'workspace', 'AGENTS.md'), 'utf8'), /openclaw skills search, verify, and install/);
-    assert.equal(await resumeSaved(), true);
-    assert.equal(await resumeSaved(), true);
+    assert.deepEqual(await resumeSaved(), {active:true,pending:false});
+    assert.deepEqual(await resumeSaved(), {active:true,pending:false});
     let bootLog = '';
     for (let retry = 0; !bootLog && retry < 40; retry++) {
       await wait(25);
       bootLog = await readFile(path.join(root, 'openclaw', 'workspace', 'boot-check'), 'utf8').catch(() => '');
     }
     assert.equal(bootLog, 'started\n');
-    assert.equal((await (await request('/status', {})).json()).running, true);
-    assert.equal((await request('/autostart', {enabled:false})).status, 200);
-    assert.deepEqual(enrolled, [true, false]);
-    assert.equal((await request('/stop', {})).status, 200);
-    assert.equal(await resumeSaved(), false);
+    assert.equal((await (await request('/status', {agent:'openclaw'})).json()).running, true);
+    assert.equal((await (await request('/status', {agent:'hermes'})).json()).running, true);
+    assert.equal((await request('/autostart', {agent:'openclaw',enabled:false})).status, 200);
+    assert.deepEqual(enrolled, [true, true, true]);
+    assert.equal((await request('/autostart', {agent:'hermes',enabled:false})).status, 200);
+    assert.deepEqual(enrolled, [true, true, true, false]);
+    assert.equal((await request('/stop', {agent:'openclaw'})).status, 200);
+    assert.equal((await request('/stop', {agent:'hermes'})).status, 200);
+    assert.deepEqual(await resumeSaved(), {active:false,pending:false});
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test('the portable setup can install a runtime before CBGPU model setup and then exit', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'cbgpu-portable-test-'));
+  const installed: string[] = [];
+  const { url, server } = await startSetup({
+    root, browser: false, portable: true,
+    async install(agent) { installed.push(agent); },
+    async getModels() { throw new Error('The runtime-only action must not check CBGPU models.'); },
+  });
+  const closed = new Promise<void>(resolve => server.once('close', resolve));
+  try {
+    const { origin, hash } = new URL(url);
+    const request = (route: string, value: unknown) => fetch(origin + route, {
+      method: 'POST', body: JSON.stringify(value), headers: {
+        'content-type': 'application/json', origin, 'x-cbgpu-setup': hash.slice(1),
+      },
+    });
+    assert.equal((await request('/finish', {})).status, 400);
+    assert.equal((await request('/install-runtime', { agent:'hermes',accepted:false })).status, 400);
+    assert.equal((await request('/install-runtime', { agent:'hermes',accepted:true })).status, 200);
+    assert.deepEqual(installed, ['hermes']);
+    assert.equal((await request('/finish', {})).status, 200);
+    await closed;
+    assert.equal(server.listening, false);
+  } finally {
+    if (server.listening) server.close();
     await rm(root, { recursive: true, force: true });
   }
 });

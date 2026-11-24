@@ -26,6 +26,7 @@ async function hasFile(location: string) {
 export async function openClawNode(root: string) {
   const bundled = nodeIn(nodeToolchain(root));
   if (await hasFile(bundled)) return bundled;
+  if (process.env.CBGPU_PORTABLE_SETUP === '1') return null;
   const [major, minor] = process.versions.node.split('.').map(Number);
   return (major === 24 && minor >= 16) || (major === 26 && minor >= 1) || major > 26 ? process.execPath : null;
 }
