@@ -1,4 +1,5 @@
 import { spawn } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { access, mkdir, writeFile, mkdtemp, rm, readFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -6,6 +7,11 @@ import { installNode, openClawNode, toolchainNpm } from './setup-node.ts';
 import type { Agent, Permissions } from './setup-profiles.ts';
 
 const windows = process.platform === 'win32';
+const hermesRevision = 'caafe5389ae585ef77387a962aee05b1bcf17029'; // v0.23.3
+const hermesInstallerDigests = {
+  'install.sh': 'c73dad4dcf7c9ecadb98578e28cc763d23d7be3fa1b513545319038795493214',
+  'install.ps1': '9bd2c1402427414a2ac9a3c3f33c66d78073ba81bb2d15634c13a52e9615d2d7',
+};
 const pathKey = Object.keys(process.env).find(key => key.toUpperCase() === 'PATH') ?? 'PATH';
 const passthrough = [pathKey, 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'PROGRAMDATA', 'APPDATA',
   'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'LANG', 'XDG_CACHE_HOME', 'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_SESSION_TYPE', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS', 'XAUTHORITY'];
@@ -99,11 +105,14 @@ export async function installRuntime(agent: Agent, root: string, permissions: Pe
     try {
       const filename = windows ? 'install.ps1' : 'install.sh';
       const target = path.join(folder, filename);
-      const url = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/v0.23.3/scripts/' + filename;
+      const url = 'https://raw.githubusercontent.com/NousResearch/hermes-agent/' + hermesRevision + '/scripts/' + filename;
       const response = await fetch(url, { redirect: 'error', signal: AbortSignal.timeout(30000) });
       if (!response.ok) throw new Error('Hermes 공식 설치 파일을 내려받지 못했어요.');
       const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.length < 256 || bytes.length > 2000000) throw new Error('Hermes 설치 파일을 확인하지 못했어요.');
+      if (bytes.length < 256 || bytes.length > 2000000 ||
+          createHash('sha256').update(bytes).digest('hex') !== hermesInstallerDigests[filename]) {
+        throw new Error('Hermes 설치 파일을 확인하지 못했어요. 설치 프로그램을 업데이트한 뒤 다시 시도해 주세요.');
+      }
       await writeFile(target, bytes, { mode: 0o600, flag: 'wx' });
       await (windows
         ? run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', target, '-NonInteractive', '-Branch', 'v0.23.3', ...(permissions.browser ? [] : ['-SkipBrowser']), '-SkipComputerUse'], env)
