@@ -88,7 +88,7 @@ export function startSetup({
       if (permissions.screen) await prepareScreen(agent, folder);
       const workspace = path.join(folder, 'workspace');
       const accountInstructions = permissions.accounts
-        ? 'Use the browser or desktop tools to sign in or register on sites the owner explicitly names. Complete and submit ordinary forms for those requests. Pause if a provider requires direct identity verification. Use available local credential tools for passwords without putting them in chat.'
+        ? 'When the owner asks you to sign in or create an account, use the enabled browser or desktop tools for the named app or site, including services you have not used before. Complete and submit the requested forms. Fill secrets through the local credential vault when available, or hand the form back to the owner for secret entry. Hand off provider verification steps, such as CAPTCHA or multi-factor authentication, to the owner.'
         : 'Ask the owner to enable account tasks before submitting login or signup forms.';
       const file = path.join(workspace, 'AGENTS.md');
       let existing = '';

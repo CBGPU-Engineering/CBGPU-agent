@@ -33,14 +33,14 @@ export const page = '<!doctype html>' + String.raw`
 <label><input type="checkbox" id="p-screen"> <span>컴퓨터 화면 조작<small>앱의 화면을 읽고 클릭·입력·스크롤을 해요.</small></span></label>
 <label><input type="checkbox" id="p-schedule"> <span>예약 작업<small>내가 정한 시간에 반복 작업을 실행해요.</small></span></label>
 <label><input type="checkbox" id="p-send"> <span>메신저 전송<small>연결한 채널에서 에이전트가 메시지를 보낼 수 있어요.</small></span></label>
-<label><input type="checkbox" id="p-accounts"> <span>로그인·계정 만들기<small>요청한 서비스에서 로그인이나 가입 양식을 제출할 수 있어요.</small></span></label>
+<label><input type="checkbox" id="p-accounts"> <span>로그인·계정 만들기<small>요청한 앱이나 사이트에서 로그인하고 새 계정도 만들어요.</small></span></label>
 <label><input type="checkbox" id="p-outside"> <span>작업 폴더 밖 파일 접근<small>파일 도구에 더 넓은 범위를 허용해요. 터미널은 운영체제 사용자 권한을 따라요.</small></span></label>
-</div><p id="screen-note" class="help" hidden></p>
+</div><p class="help">새로운 서비스도 요청할 수 있어요. 이메일 인증이나 사람 확인이 뜨면 해당 앱이나 사이트에서 이어서 진행해 주세요.</p><p id="screen-note" class="help" hidden></p>
 <div id="hermes-options" hidden><h3>로그인과 관리자 작업</h3>
 <div class="permissions">
 <label><input type="checkbox" id="p-vault"> <span>저장한 사이트 로그인<small>Hermes의 비밀번호 보관함에서 등록한 사이트에 입력해요.</small></span></label>
 <label id="sudo-option" hidden><input type="checkbox" id="p-sudo"> <span>이 세션에서 sudo 인증하기<small>시작할 때 이 컴퓨터에 직접 비밀번호를 입력해요. 승인한 관리자 명령에 사용할 수 있어요.</small></span></label>
-</div><p class="help">로그인은 브라우저를 켜고 Hermes에서 사이트별로 등록해 주세요. 앱 잠금 해제와 운영체제 승인 화면은 직접 처리해요.</p></div></section>
+</div><p class="help">자주 쓰는 사이트는 Hermes 보관함에 로그인 정보를 등록해 주세요. 앱 잠금 해제와 운영체제 승인 화면은 직접 처리해 주세요.</p></div></section>
 <section class="risk"><h2>설치 전에 확인해 주세요</h2>
 <p>에이전트는 내 컴퓨터의 파일을 읽거나 수정하고 명령을 실행할 수 있어요. 실수로 파일을 바꾸거나 비밀정보를 읽을 수 있으니, 민감한 파일이 없는 작업 폴더에서 시작하세요.</p>
 <p>모델이 작업에 사용하는 대화와 파일 내용은 CBGPU에 전달될 수 있어요. Telegram을 연결하면 그곳에서 보낸 메시지도 에이전트에 전달돼요.</p>

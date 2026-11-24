@@ -186,6 +186,18 @@ terminal, browser, desktop, scheduled work, and messaging. Terminal and desktop
 access can reach data available to the operating system user. Stop the agent in
 the setup window when you need to revoke a running session's access.
 
+Enable **로그인·계정 만들기** if you want the agent to sign in or submit signup
+forms for apps and sites you name, including new services. The selection adds
+instructions to the profile workspace. Browser or desktop access supplies the
+actual controls. Hermes can use its local credential vault for supported sites.
+Complete credential entry and provider verification in the app or site when
+they require your input.
+
+On Linux and macOS, Hermes can use session-only sudo authentication when shell
+access is enabled. Enter the password into the local setup window when starting
+Hermes. The installer passes it to the running process. Hermes still applies
+its command approval settings.
+
 Telegram setup uses a bot from [BotFather](https://t.me/BotFather) and your
 numeric Telegram user ID. The installer checks the bot's identity. Start the
 agent and open a private conversation with that bot. The computer must stay

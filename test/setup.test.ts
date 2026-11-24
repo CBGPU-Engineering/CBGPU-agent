@@ -59,6 +59,15 @@ test('loopback setup verifies origin and ticket, preserves runtime settings and 
     assert.doesNotMatch(config, /cbgpu_ai_|abcdefghijklmnopqrstuvwxyz/);
     assert.match(config, /"primary": "cbgpu\/cbgpu-qwen38"/);
     if (process.platform !== 'win32') assert.equal((await stat(path.join(openclaw,'credentials.json'))).mode & 0o777, 0o600);
+    const instructions = path.join(openclaw, 'workspace', 'AGENTS.md');
+    assert.match(await readFile(instructions, 'utf8'), /Ask the owner to enable account tasks/);
+    assert.equal((await request('/install', { ...payload, permissions: { accounts: true } })).status, 400);
+    assert.equal((await request('/install', { ...payload, permissions: { accounts: true, browser: true } })).status, 200);
+    const updatedInstructions = await readFile(instructions, 'utf8');
+    assert.match(updatedInstructions, /including services you have not used before/);
+    assert.match(updatedInstructions, /Hand off provider verification steps/);
+    assert.equal((updatedInstructions.match(/cbgpu-setup:start/g) ?? []).length, 1);
+    assert.match(await readFile(path.join(openclaw, 'openclaw.json'), 'utf8'), /"browser"/);
     const page = await fetch(origin);
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
