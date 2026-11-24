@@ -170,7 +170,11 @@ get('stop').addEventListener('click', async () => {
   catch (error) { message(error.message, true); }
 });
 request('/status').then(result => {
-  saved = result.saved; needsSudo = result.sudo; platform = result.platform;
+  saved = result.saved; needsSudo = Boolean(result.permissions.sudo); platform = result.platform;
+  if (saved) {
+    for (const radio of form.querySelectorAll('[name=agent]')) radio.checked = radio.value === saved;
+    for (const name of [...capabilityNames, 'vault', 'sudo']) get('p-' + name).checked = result.permissions[name] === true;
+  }
   get('start').hidden = !saved; renderModels();
 }).catch(error => message(error.message, true));
 `;

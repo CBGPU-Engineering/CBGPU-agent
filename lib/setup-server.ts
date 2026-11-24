@@ -186,7 +186,8 @@ export function startSetup({
         case '/status': {
           const saved = (await read(root, 'selection.json').catch(() => null))?.agent;
           const current = saved === 'openclaw' || saved === 'hermes' ? await read(path.join(root, saved), 'credentials.json').catch(() => null) : null;
-          result = { saved: current ? saved : '', sudo: Boolean(current?.permissions?.sudo), platform: process.platform };
+          const permissions = parsePermissions(current?.permissions);
+          result = { saved: current ? saved : '', permissions, platform: process.platform };
           break;
         }
         case '/models': result = { models: await getModels(payload.key) }; break;

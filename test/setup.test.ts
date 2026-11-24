@@ -68,6 +68,11 @@ test('loopback setup verifies origin and ticket, preserves runtime settings and 
     assert.match(updatedInstructions, /Hand off provider verification steps/);
     assert.equal((updatedInstructions.match(/cbgpu-setup:start/g) ?? []).length, 1);
     assert.match(await readFile(path.join(openclaw, 'openclaw.json'), 'utf8'), /"browser"/);
+    const savedStatus = await (await request('/status', {})).json();
+    assert.equal(savedStatus.saved, 'openclaw');
+    assert.equal(savedStatus.permissions.accounts, true);
+    assert.equal(savedStatus.permissions.browser, true);
+    assert.doesNotMatch(JSON.stringify(savedStatus), /cbgpu_ai_|abcdefghijklmnopqrstuvwxyz/);
     const page = await fetch(origin);
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
