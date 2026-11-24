@@ -1,12 +1,15 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
+import { chmod, lstat, mkdir, rename, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readSetupLogo, setupLogos } from './setup-assets.ts';
+import { readSetupLogo, readSetupModule, setupLogos } from './setup-assets.ts';
+import { installNode } from './setup-node.ts';
+import { runtimeEnvironment } from './setup-runtime.ts';
+import type { Agent } from './setup-profiles.ts';
 
-const runtimeModules = [
+export const runtimeModules = [
   'config.js', 'setup-assets.js', 'setup-autostart.js', 'setup-node.js', 'setup-page.js', 'setup-process.js',
-  'setup-profiles.js', 'setup-runtime.js', 'setup-server.js',
+  'setup-power.js', 'setup-profiles.js', 'setup-runtime.js', 'setup-server.js',
 ];
 
 export async function saveSetupFile(folder: string, file: string, value: string | Uint8Array) {
@@ -57,22 +60,27 @@ export function startupEntry(platform: NodeJS.Platform, home: string, env: NodeJ
   throw new Error('이 환경에서는 자동 시작을 설정할 수 없어요.');
 }
 
-export async function configureAutostart(root: string, enabled: boolean) {
-  let script = path.join(root, 'setup-process.js');
-  if (enabled) {
-    const modules = await Promise.all(runtimeModules.map(file => readFile(new URL('./' + file, import.meta.url))));
-    const logos = await Promise.all(setupLogos.map(readSetupLogo));
-    const version = createHash('sha256');
-    for (const content of [...modules, ...logos]) version.update(content);
-    const folder = path.join(root, 'startup-runtime', version.digest('hex').slice(0, 20));
-    const assets = path.join(folder, 'setup-assets');
-    await mkdir(assets, { recursive: true, mode: 0o700 });
-    await Promise.all(runtimeModules.map((file, index) => saveSetupFile(folder, file, modules[index])));
-    await Promise.all(setupLogos.map((file, index) => saveSetupFile(assets, file, logos[index])));
-    await saveSetupFile(folder, 'package.json', '{"type":"module","private":true}\n');
-    script = path.join(folder, 'setup-process.js');
+async function readyStartup(root: string) {
+  let program = process.execPath;
+  const modules = await Promise.all(runtimeModules.map(readSetupModule));
+  const logos = await Promise.all(setupLogos.map(readSetupLogo));
+  const version = createHash('sha256');
+  for (const content of [...modules, ...logos]) version.update(content);
+  const folder = path.join(root, 'startup-runtime', version.digest('hex').slice(0, 20));
+  const assets = path.join(folder, 'setup-assets');
+  await mkdir(assets, { recursive: true, mode: 0o700 });
+  await Promise.all(runtimeModules.map((file, index) => saveSetupFile(folder, file, modules[index])));
+  await Promise.all(setupLogos.map((file, index) => saveSetupFile(assets, file, logos[index])));
+  await saveSetupFile(folder, 'package.json', '{"type":"module","private":true}\n');
+  if (process.env.CBGPU_PORTABLE_SETUP === '1') {
+    program = await installNode(path.join(root, 'startup'), runtimeEnvironment());
   }
-  const entry = startupEntry(process.platform, os.homedir(), process.env, process.execPath, script);
+  return { program, script: path.join(folder, 'setup-process.js') };
+}
+
+export async function configureAutostart(root: string, enabled: boolean) {
+  const { program, script } = enabled ? await readyStartup(root) : { program: process.execPath, script: path.join(root, 'setup-process.js') };
+  const entry = startupEntry(process.platform, os.homedir(), process.env, program, script);
   if (enabled) {
     await mkdir(path.dirname(entry.file), { recursive: true, mode: 0o700 });
     const file = await lstat(entry.file).catch((error: NodeJS.ErrnoException) => {
@@ -85,4 +93,35 @@ export async function configureAutostart(root: string, enabled: boolean) {
       if (error.code !== 'ENOENT') throw error;
     });
   }
+}
+
+function shellArgument(value: string) {
+  return "'" + value.replaceAll("'", "'\"'\"'") + "'";
+}
+
+export async function configureManualLauncher(root: string, agent: Agent) {
+  const home = os.homedir();
+  const { program, script } = await readyStartup(root);
+  const name = agent === 'openclaw' ? 'OpenClaw (CBGPU)' : 'Hermes (CBGPU)';
+  const argument = '--open-' + agent;
+  let file: string;
+  let content: string;
+  if (process.platform === 'darwin') {
+    file = path.join(home, 'Applications', name + '.command');
+    content = '#!/bin/sh\nexec ' + shellArgument(program) + ' ' + shellArgument(script) + ' ' + argument + '\n';
+  } else {
+    const entry = startupEntry(process.platform, home, process.env, program, script);
+    content = entry.content.replace('--autostart', argument);
+    if (process.platform === 'win32') {
+      file = path.join(path.dirname(entry.file), '..', name + '.cmd');
+    } else {
+      const data = process.env.XDG_DATA_HOME && path.isAbsolute(process.env.XDG_DATA_HOME) ? process.env.XDG_DATA_HOME : path.join(home, '.local', 'share');
+      file = path.join(data, 'applications', 'cbgpu-' + agent + '.desktop');
+      content = content.replace('Name=CBGPU Agent', 'Name=' + name).replace('Type=Application', 'Type=Application\nCategories=Utility;');
+    }
+  }
+  await mkdir(path.dirname(file), { recursive: true });
+  await saveSetupFile(path.dirname(file), path.basename(file), content);
+  if (process.platform === 'darwin') await chmod(file, 0o700);
+  return { name, file };
 }

@@ -9,14 +9,16 @@ import { endpoint } from './config.ts';
 import { client, page, stylesheet } from './setup-page.ts';
 import { makeProfile, modelsFromCatalog, parsePermissions, parseTelegram, validKey, type Agent } from './setup-profiles.ts';
 import { findRuntime, installRuntime, prepareDesktop, openBrowser, runtimeEnvironment } from './setup-runtime.ts';
-import { configureAutostart, saveSetupFile } from './setup-autostart.ts';
+import { configureAutostart, configureManualLauncher, saveSetupFile } from './setup-autostart.ts';
 import { readSetupLogo, setupLogos } from './setup-assets.ts';
+import { inhibitSleep } from './setup-power.ts';
 
 export const systemRoot = path.join(os.homedir(), '.config', 'cbgpu-agent', 'setup');
 const parseAgent = (value: unknown): Agent => {
   if (value !== 'openclaw' && value !== 'hermes') throw new Error('설치할 에이전트를 선택해 주세요.');
   return value;
 };
+const agents: Agent[] = ['openclaw', 'hermes'];
 
 async function jsonBody(request: IncomingMessage) {
   if (request.headers['content-type'] !== 'application/json') throw new Error('설치 화면에서 다시 시도해 주세요.');
@@ -47,25 +49,44 @@ async function modelCatalog(key: unknown) {
 }
 
 export function startSetup({
-  root = systemRoot, browser = true, port = 0, getModels = modelCatalog, enroll = configureAutostart,
+  root = systemRoot, browser = true, port = 0, portable = false, getModels = modelCatalog, enroll = configureAutostart,
+  shortcut = configureManualLauncher,
   install = installRuntime, runtime = findRuntime, fetchBot = fetch, prepareScreen = prepareDesktop,
 } = {}) {
   const ticket = randomBytes(24).toString('base64url');
   let origin = '';
   let busy = false;
-  let running: ChildProcess | undefined;
+  let runtimeReady = false;
+  const running = new Map<Agent, ChildProcess>();
   async function save(folder: string, filename: string, value: unknown, text = false) {
     await saveSetupFile(folder, filename, text ? String(value) : JSON.stringify(value, null, 2) + '\n');
   }
   async function read(folder: string, filename: string) {
     return JSON.parse(await readFile(path.join(folder, filename), 'utf8'));
   }
+  async function readSelection() {
+    return await read(root, 'selection.json').catch(() => null);
+  }
+  async function loginOptions() {
+    const current = await read(root, 'autostart.json').catch(() => null);
+    if (current) return { openclaw: current.openclaw === true, hermes: current.hermes === true };
+    const old = await readSelection();
+    return { openclaw: old?.autoStart === true && old.agent === 'openclaw',
+      hermes: old?.autoStart === true && old.agent === 'hermes' };
+  }
+  async function setLoginOption(agent: Agent, enabled: boolean) {
+    const state = await loginOptions();
+    const wasEnabled = state.openclaw || state.hermes;
+    state[agent] = enabled;
+    if (wasEnabled || enabled) await enroll(root, state.openclaw || state.hermes);
+    await save(root, 'autostart.json', state);
+  }
   async function configure(payload: Record<string, unknown>) {
-    if (busy || running) throw new Error('설치가 진행 중이거나 에이전트가 실행 중이에요.');
+    const agent = parseAgent(payload.agent);
+    if (busy || running.has(agent)) throw new Error('설치가 진행 중이거나 에이전트가 실행 중이에요.');
     busy = true;
     try {
       if (payload.accepted !== true) throw new Error('설치 전에 접근 권한과 위험을 확인해 주세요.');
-      const agent = parseAgent(payload.agent);
       const models = await getModels(payload.key);
       const model = models.find(entry => entry.id === payload.model);
       if (!model) throw new Error('CBGPU에서 사용할 수 있는 모델을 선택해 주세요.');
@@ -76,6 +97,11 @@ export function startSetup({
       const permissions = parsePermissions(payload.permissions);
       const profile = makeProfile(agent, model, folder, telegram, permissions);
       if (telegram) {
+        const other = agent === 'hermes' ? 'openclaw' : 'hermes';
+        const current = await read(path.join(root, other), 'credentials.json').catch(() => null);
+        if (current?.telegram?.token === telegram.token) {
+          throw new Error('OpenClaw와 Hermes에 서로 다른 Telegram 봇을 연결해 주세요.');
+        }
         let result;
         try {
           const response = await fetchBot('https://api.telegram.org/bot' + telegram.token + '/getMe', {
@@ -87,6 +113,7 @@ export function startSetup({
       }
       await mkdir(path.join(folder, 'workspace'), { recursive: true, mode: 0o700 });
       await install(agent, folder, permissions);
+      runtimeReady = true;
       if (permissions.screen) await prepareScreen(agent, folder);
       const workspace = path.join(folder, 'workspace');
       const accountInstructions = permissions.accounts
@@ -112,10 +139,10 @@ export function startSetup({
       await save(workspace, 'AGENTS.md', instructions, true);
       await save(folder, profile.filename, profile.config);
       await save(folder, 'credentials.json', { key: payload.key, telegram, permissions });
-      const prior = await read(root, 'selection.json').catch(() => null);
-      if (autoStart || prior?.autoStart === true) await enroll(root, autoStart);
-      await save(root, 'selection.json', { agent, autoStart });
-      return { ready: true };
+      const launcher = portable ? await shortcut(root, agent) : null;
+      await setLoginOption(agent, autoStart);
+      await save(root, 'selection.json', { agent });
+      return { ready: true, launcher };
     } finally { busy = false; }
   }
   async function launch(agent: Agent, sudoPassword: unknown) {
@@ -150,16 +177,17 @@ export function startSetup({
     makeProfile(agent, verifiedModel, folder, telegram, permissions);
     const command = agent === 'hermes' && !telegram ? 'dashboard' : 'gateway';
     const child = spawn(installed.program, [...installed.prefix, command], {
-      env, cwd: path.join(folder, 'workspace'), stdio: 'ignore', windowsHide: true,
+      env, cwd: path.join(folder, 'workspace'), stdio: 'ignore', windowsHide: true, detached: portable,
     });
-    running = child;
-    const clear = () => { if (running === child) running = undefined; };
+    running.set(agent, child);
+    const clear = () => { if (running.get(agent) === child) running.delete(agent); };
     child.once('error', clear);
     child.once('exit', clear);
     await new Promise<void>((resolve, reject) => {
       child.once('spawn', resolve);
       child.once('error', () => reject(new Error('에이전트를 시작하지 못했어요. 다시 설치해 주세요.')));
     });
+    if (permissions?.awake) inhibitSleep(child);
     return {
       message: telegram ? '에이전트를 시작했어요. Telegram에서 내 봇에게 메시지를 보내 연결을 확인해 주세요.'
         : '에이전트를 시작했어요. 창이 열리기까지 잠시 기다려 주세요.',
@@ -168,18 +196,31 @@ export function startSetup({
         : null,
     };
   }
-  async function resumeSaved() {
-    const current = await read(root, 'selection.json').catch(() => null);
-    if (current?.autoStart !== true) return false;
-    if (running) return true;
-    if (busy) throw new Error('에이전트를 시작하는 중이에요.');
+  async function startManually(agent: Agent, sudoPassword?: unknown) {
+    if (portable) throw new Error('설치 도우미를 닫고 OpenClaw 또는 Hermes 바로가기에서 시작해 주세요.');
+    if (busy) throw new Error('설치 중이거나 시작 중이에요.');
+    if (running.has(agent)) return { message: '에이전트가 이미 실행 중이에요.', url: null };
     busy = true;
     try {
-      const agent = parseAgent(current.agent);
-      const { telegram } = await read(path.join(root, agent), 'credentials.json');
-      if (!telegram) return false;
-      await launch(agent, undefined);
-      return true;
+      const result = await launch(agent, sudoPassword);
+      await save(root, 'selection.json', { agent });
+      return result;
+    } finally { busy = false; }
+  }
+  async function resumeSaved() {
+    if (portable) return { active: false, pending: true };
+    const options = await loginOptions();
+    if (busy) throw new Error('에이전트를 시작하는 중이에요.');
+    busy = true;
+    let pending = false;
+    try {
+      for (const agent of agents.filter(item => options[item] && !running.has(item))) {
+        try {
+          const current = await read(path.join(root, agent), 'credentials.json');
+          if (current.telegram) await launch(agent, undefined);
+        } catch { pending = true; }
+      }
+      return { active: running.size > 0, pending };
     } finally { busy = false; }
   }
   const assets = new Map([
@@ -222,45 +263,64 @@ export function startSetup({
       let result;
       switch (pathname) {
         case '/status': {
-          const selection = await read(root, 'selection.json').catch(() => null);
-          const saved = selection?.agent;
+          const selection = await readSelection();
+          const saved = payload.agent ?? selection?.agent;
           const current = saved === 'openclaw' || saved === 'hermes' ? await read(path.join(root, saved), 'credentials.json').catch(() => null) : null;
           const permissions = parsePermissions(current?.permissions);
+          const flags = await loginOptions();
           result = { saved: current ? saved : '', permissions, platform: process.platform,
-            running: Boolean(running), autoStart: Boolean(current?.telegram && selection?.autoStart), telegram: Boolean(current?.telegram) };
+            running: typeof saved === 'string' && running.has(saved as Agent),
+            autoStart: Boolean(current?.telegram && flags[saved as Agent]),
+            telegram: Boolean(current?.telegram), portable };
           break;
         }
         case '/models': result = { models: await getModels(payload.key) }; break;
         case '/install': result = await configure(payload); break;
-        case '/resume': result = { started: await resumeSaved() }; break;
+        case '/install-runtime': {
+          if (!portable || busy || running.has(parseAgent(payload.agent))) throw new Error('설치가 진행 중인지 확인해 주세요.');
+          if (payload.accepted !== true) throw new Error('설치 전에 접근 권한과 위험을 확인해 주세요.');
+          busy = true;
+          try {
+            const agent = parseAgent(payload.agent);
+            const folder = path.join(root, agent);
+            await install(agent, folder, parsePermissions(payload.permissions));
+            runtimeReady = true;
+            result = { ready: true };
+          } finally { busy = false; }
+          break;
+        }
+        case '/finish': {
+          if (!portable || busy || !runtimeReady) throw new Error('설치를 마친 뒤 창을 닫아 주세요.');
+          response.once('finish', () => server.close());
+          result = { closed: true };
+          break;
+        }
+        case '/resume': result = await resumeSaved(); break;
         case '/autostart': {
           if (busy) throw new Error('설치나 시작이 끝난 뒤 다시 설정해 주세요.');
           busy = true;
           try {
-            const current = await read(root, 'selection.json');
-            const agent = parseAgent(current.agent);
+            const current = await readSelection();
+            const agent = parseAgent(payload.agent ?? current?.agent);
             const { telegram } = await read(path.join(root, agent), 'credentials.json');
             const autoStart = payload.enabled === true;
             if (autoStart && !telegram) throw new Error('자동 시작을 켜려면 Telegram 봇을 먼저 연결해 주세요.');
-            await enroll(root, autoStart);
-            await save(root, 'selection.json', { agent, autoStart });
+            await setLoginOption(agent, autoStart);
             result = { autoStart };
           } finally { busy = false; }
           break;
         }
         case '/start':
-          if (busy || running) throw new Error('이미 시작 중이거나 실행 중이에요.');
-          busy = true;
-          try { result = await launch(parseAgent(payload.agent), payload.sudoPassword); }
-          finally { busy = false; }
+          result = await startManually(parseAgent(payload.agent), payload.sudoPassword);
           break;
         case '/stop': {
           if (busy) throw new Error('시작이 끝난 뒤 멈춰 주세요.');
-          const child = running;
+          const selected = parseAgent(payload.agent ?? (await readSelection())?.agent);
+          const child = running.get(selected);
           if (child && child.exitCode === null && child.signalCode === null) {
             child.kill();
-            for (let tick = 0; tick < 20 && running === child; tick++) await wait(100);
-            if (running === child) throw new Error('에이전트가 종료되는 중이에요. 잠시 뒤 다시 확인해 주세요.');
+            for (let tick = 0; tick < 20 && running.get(selected) === child; tick++) await wait(100);
+            if (running.get(selected) === child) throw new Error('에이전트가 종료되는 중이에요. 잠시 뒤 다시 확인해 주세요.');
           }
           result = { stopped: true };
           break;
@@ -274,8 +334,13 @@ export function startSetup({
       reply(response, 400, { error: message });
     }
   });
-  server.on('close', () => running?.kill());
-  return new Promise<{ url: string; server: typeof server; resumeSaved: typeof resumeSaved }>((resolve, reject) => {
+  server.on('close', () => {
+    for (const child of running.values()) {
+      if (portable) child.unref();
+      else child.kill();
+    }
+  });
+  return new Promise<{ url: string; server: typeof server; resumeSaved: typeof resumeSaved; startManually: typeof startManually }>((resolve, reject) => {
     server.once('error', reject);
     server.listen(port, '127.0.0.1', () => {
       const address = server.address();
@@ -283,7 +348,7 @@ export function startSetup({
       origin = 'http://127.0.0.1:' + address.port;
       const url = origin + '/#' + ticket;
       if (browser) openBrowser(url);
-      resolve({ url, server, resumeSaved });
+      resolve({ url, server, resumeSaved, startManually });
     });
   });
 }

@@ -185,6 +185,13 @@ command; native activation and package publication require release review.
 
 ## Install OpenClaw or Hermes with CBGPU
 
+Download the matching **CBGPU Agent Setup** executable from
+[Releases](https://github.com/CBGPU-Engineering/CBGPU-agent/releases). On macOS,
+open the app inside the archive. The executable opens a local browser setup.
+After setup, close it with **설치 도우미 닫기** and remove the downloaded file
+if desired. The chosen agent and its local configuration are installed
+separately. The completion screen identifies the manual launcher.
+
 Run the setup program from a desktop session with Node.js 22.18 or newer.
 
 ```bash
@@ -232,6 +239,12 @@ Enable **컴퓨터에 로그인하면 자동 시작** to start the saved Telegra
 you sign in. This uses the current user's desktop startup settings. Open the
 setup screen again to stop the running agent or turn off future automatic
 starts. Enter the sudo password manually for a session that needs it.
+If you enable both agents at login, configure a different bot for each.
+
+**에이전트가 실행 중일 때 절전 방지** holds an operating-system sleep
+assertion for the running agent. On Windows, set the plugged-in lid action
+in Power Options. macOS closed-display mode requires power and an external
+display. On Linux, the lid lock applies when systemd manages the lid.
 
 Enable **필요한 스킬 설치** and shell access to let the agent look up and install
 skills for its profile. The runtimes apply their own skill trust checks and

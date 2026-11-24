@@ -24,6 +24,8 @@ export const page = '<!doctype html>' + String.raw`
 <label class="agree"><input id="autostart" type="checkbox"> <span>컴퓨터에 로그인하면 자동 시작</span></label>
 <p class="help">이 컴퓨터에 로그인하면 에이전트가 켜져요. 컴퓨터가 켜져 있고 인터넷에 연결되어 있어야 Telegram으로 작업을 맡길 수 있어요.</p>
 <button id="save-autostart" type="button" hidden>자동 시작 설정 저장</button>
+<label class="agree"><input id="awake" type="checkbox"> <span>에이전트가 실행 중일 때 절전 방지</span></label>
+<p class="help" id="power-note">전원 연결과 덮개 동작을 확인해 주세요.</p>
 </section>
 <section id="permissions"><h2>컴퓨터에서 할 수 있는 일</h2>
 <p>설치한 뒤 켜고 끌 수 있어요. 작업에 필요한 항목만 선택해도 됩니다.</p>
@@ -50,9 +52,12 @@ export const page = '<!doctype html>' + String.raw`
 <p>모델이 작업에 사용하는 대화와 파일 내용은 CBGPU에 전달될 수 있어요. Telegram을 연결하면 그곳에서 보낸 메시지도 에이전트에 전달돼요.</p>
 <label class="agree"><input id="risk" type="checkbox" required> <span>접근 권한과 위험을 확인했어요.</span></label></section>
 <footer><button class="primary" id="apply" type="submit" disabled>설치하고 연결하기</button>
+<button id="install-app" type="button" hidden>프로그램만 설치하기</button>
 <div id="sudo-auth" hidden><label for="sudo-password">이 세션의 sudo 비밀번호</label><input id="sudo-password" type="password" autocomplete="off" spellcheck="false"><p class="help">이 컴퓨터의 Hermes 프로세스에만 전달해요. 파일로 저장하지 않아요. 원격 작업에서도 관리자 권한이 쓰일 수 있어요.</p></div>
 <button id="start" type="button" hidden>에이전트 시작하기</button><button id="stop" type="button" hidden>에이전트 멈추기</button>
-<p id="status" role="status" aria-live="polite"></p></footer>
+<p id="status" role="status" aria-live="polite"></p>
+<section id="installed" hidden><h2>설치 완료</h2><p id="manual-guide"></p>
+<button id="finish" type="button">설치 도우미 닫기</button></section></footer>
 </form></main><script src="/setup.js" defer></script></body></html>`;
 
 export const stylesheet = String.raw`
@@ -85,7 +90,7 @@ const get = id => document.getElementById(id);
 const form = get('setup'), select = get('model'), key = get('key');
 const status = get('status'), verify = get('verify'), apply = get('apply');
 const capabilityNames = ['read','write','shell','browser','screen','schedule','send','outside','accounts','skills'];
-let needsSudo = false, platform = '', catalog = [], busy = false, running = false, saved = '';
+let needsSudo = false, platform = '', catalog = [], busy = false, running = false, saved = '', portable = false;
 const selected = () => new FormData(form).get('agent');
 const minimum = {openclaw:16000,hermes:64000};
 function message(text, error = false) { status.textContent = text; status.dataset.error = String(error); }
@@ -115,6 +120,7 @@ function renderModels() {
   if (candidates.some(model => model.id === previous)) select.value = previous;
   select.disabled = !candidates.length || busy;
   apply.disabled = !candidates.length || busy || running;
+  get('install-app').disabled = busy || running;
   if (permission.checked && selected() === 'openclaw' && catalog.some(model => model.context >= minimum.openclaw) && !candidates.length) {
     get('compatibility').textContent = 'OpenClaw의 화면 조작에는 이미지 입력을 지원하는 모델이 필요해요.';
     return;
@@ -123,7 +129,13 @@ function renderModels() {
     : selected() === 'hermes' ? 'Hermes Agent에는 64,000토큰 이상의 모델이 필요해요.'
     : 'OpenClaw에는 16,000토큰 이상의 모델이 필요해요.';
 }
-form.querySelectorAll('[name=agent]').forEach(radio => radio.addEventListener('change', renderModels));
+form.querySelectorAll('[name=agent]').forEach(radio => radio.addEventListener('change', () => {
+  renderModels();
+  const agent = selected();
+  request('/status', {agent}).then(result => {
+    if (selected() === agent) restoreProfile(result, false);
+  }).catch(error => message(error.message, true));
+}));
 get('p-screen').addEventListener('change', renderModels);
 get('assistant').addEventListener('click', () => {
   capabilityNames.forEach(name => { get('p-' + name).checked = true; });
@@ -144,17 +156,47 @@ form.addEventListener('submit', async event => {
   const data = { agent:selected(), model:select.value, key:key.value, token:get('telegram').value.trim(), autoStart: get('autostart').checked,
     user:get('user').value.trim(), accepted:get('risk').checked,
     permissions:Object.fromEntries([...capabilityNames,'vault','sudo'].map(name => [name, get('p-' + name).checked])) };
+  data.permissions.awake = get('awake').checked;
   busy = true; renderModels();
   message('공식 설치 파일을 내려받고 CBGPU에 연결하고 있어요. 몇 분 걸릴 수 있어요.');
   try {
-    await request('/install', data);
+    const result = await request('/install', data);
     saved = data.agent; needsSudo = data.permissions.sudo;
     get('save-autostart').hidden = !data.token;
     key.value = ''; get('telegram').value = ''; catalog = [];
-    get('start').hidden = false;
-    message('설치와 설정을 마쳤어요. 에이전트를 시작해 주세요.');
+    get('start').hidden = portable;
+    if (portable) {
+      get('manual-guide').textContent = platform === 'darwin'
+        ? 'Finder의 홈 폴더 → 응용 프로그램에서 ' + result.launcher.name + '.command를 여세요. 설치 도우미 파일은 닫은 뒤 삭제해도 돼요.'
+        : (platform === 'win32' ? 'Windows 시작 메뉴' : '앱 메뉴') + '에서 ' + result.launcher.name + '를 검색해 실행하세요. 설치 도우미 파일은 닫은 뒤 삭제해도 돼요.';
+      get('installed').hidden = false;
+      message('설치와 설정을 마쳤어요.');
+    } else message('설치와 설정을 마쳤어요. 에이전트를 시작해 주세요.');
   } catch (error) { message(error.message, true); }
   finally { busy = false; renderModels(); }
+});
+get('install-app').addEventListener('click', async () => {
+  if (busy || !get('risk').reportValidity()) return;
+  const agent = selected();
+  busy = true;
+  renderModels();
+  message('공식 프로그램을 내려받아 설치하고 있어요.');
+  try {
+    await request('/install-runtime', {agent,accepted:true,permissions:{browser:get('p-browser').checked}});
+    get('manual-guide').textContent = agent === 'hermes'
+      ? '터미널에서 hermes를 실행하면 Hermes 설정을 열 수 있어요. CBGPU 연결과 자동 시작은 호환 모델을 연결한 뒤 설정할 수 있어요.'
+      : 'OpenClaw 프로그램을 이 컴퓨터에 저장했어요. CBGPU에 연결하면 앱 메뉴에 수동 실행 바로가기를 만들어요.';
+    get('installed').hidden = false;
+    message('프로그램을 설치했어요.');
+  } catch (error) { message(error.message, true); }
+  finally { busy = false; renderModels(); }
+});
+get('finish').addEventListener('click', async () => {
+  try {
+    await request('/finish');
+    get('finish').disabled = true;
+    message('설치 도우미를 종료했어요. 이 탭을 닫고 내려받은 도우미 파일을 삭제해도 돼요.');
+  } catch (error) { message(error.message, true); }
 });
 get('start').addEventListener('click', async () => {
   try {
@@ -172,30 +214,39 @@ get('start').addEventListener('click', async () => {
   } catch (error) { message(error.message, true); }
 });
 get('stop').addEventListener('click', async () => {
-  try { await request('/stop'); running = false; get('start').hidden = false; get('stop').hidden = true; renderModels(); message('에이전트를 멈췄어요.'); }
+  try { await request('/stop', {agent:saved}); running = false; get('start').hidden = false; get('stop').hidden = true; renderModels(); message('에이전트를 멈췄어요.'); }
   catch (error) { message(error.message, true); }
 });
 get('save-autostart').addEventListener('click', async event => {
   const button = event.currentTarget;
   button.disabled = true;
   try {
-    const result = await request('/autostart', {enabled: get('autostart').checked});
+    const result = await request('/autostart', {agent:saved, enabled: get('autostart').checked});
     message(result.autoStart ? '다음에 컴퓨터에 로그인하면 자동으로 시작해요.' : '자동 시작을 껐어요.');
   } catch (error) { message(error.message, true); }
   finally { button.disabled = false; }
 });
-request('/status').then(result => {
+function restoreProfile(result, initial) {
   saved = result.saved; needsSudo = Boolean(result.permissions.sudo); platform = result.platform;
+  portable = result.portable;
+  get('install-app').hidden = !portable;
   if (saved) {
-    for (const radio of form.querySelectorAll('[name=agent]')) radio.checked = radio.value === saved;
+    if (initial) for (const radio of form.querySelectorAll('[name=agent]')) radio.checked = radio.value === saved;
     for (const name of [...capabilityNames, 'vault', 'sudo']) get('p-' + name).checked = result.permissions[name] === true;
   }
+  get('awake').checked = result.permissions.awake === true;
+  get('power-note').textContent = platform === 'darwin'
+    ? 'macOS에서 덮개를 닫으려면 전원과 외부 디스플레이가 필요해요. 이 옵션은 에이전트가 실행 중일 때 자동 절전을 막아요.'
+    : platform === 'win32'
+      ? '노트북을 닫아 두려면 Windows 전원 옵션에서 전원 연결 시 덮개를 닫아도 절전하지 않도록 설정해 주세요.'
+      : 'systemd가 덮개 동작을 관리하면 에이전트가 실행 중일 때 절전을 막아요. 데스크톱이 따로 관리하면 전원 설정도 확인해 주세요.';
   running = result.running;
   get('autostart').checked = result.autoStart;
   get('save-autostart').hidden = !result.telegram;
-  get('start').hidden = !saved || running;
-  get('stop').hidden = !running;
+  get('start').hidden = !saved || running || portable;
+  get('stop').hidden = !running || portable;
   if (running) message('에이전트가 실행 중이에요.');
   renderModels();
-}).catch(error => message(error.message, true));
+}
+request('/status').then(result => restoreProfile(result, true)).catch(error => message(error.message, true));
 `;

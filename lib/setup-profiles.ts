@@ -5,7 +5,7 @@ import { endpoint } from './config.ts';
 export type Agent = 'openclaw' | 'hermes';
 export type Model = { id: string; label: string; context: number; output: number; vision: boolean };
 export type Telegram = { token: string; userId: string };
-export const capabilityNames = ['read', 'write', 'shell', 'browser', 'screen', 'schedule', 'send', 'outside', 'vault', 'sudo', 'accounts', 'skills'] as const;
+export const capabilityNames = ['read', 'write', 'shell', 'browser', 'screen', 'schedule', 'send', 'outside', 'vault', 'sudo', 'accounts', 'skills', 'awake'] as const;
 export type Permissions = Partial<Record<(typeof capabilityNames)[number], boolean>>;
 export function parsePermissions(value: unknown): Permissions {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
