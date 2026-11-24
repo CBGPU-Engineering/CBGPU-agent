@@ -16,8 +16,10 @@ const pathKey = Object.keys(process.env).find(key => key.toUpperCase() === 'PATH
 const passthrough = [pathKey, 'HOME', 'USERPROFILE', 'LOCALAPPDATA', 'PROGRAMDATA', 'APPDATA',
   'SYSTEMROOT', 'SystemRoot', 'WINDIR', 'COMSPEC', 'TEMP', 'TMP', 'TMPDIR', 'LANG', 'XDG_CACHE_HOME', 'DISPLAY', 'WAYLAND_DISPLAY', 'XDG_SESSION_TYPE', 'XDG_RUNTIME_DIR', 'DBUS_SESSION_BUS_ADDRESS', 'XAUTHORITY'];
 
-export function runtimeEnvironment(): NodeJS.ProcessEnv {
-  return Object.fromEntries(passthrough.map(key => [key, process.env[key]]).filter(entry => entry[1]));
+export function runtimeEnvironment(commandPaths: string[] = []): NodeJS.ProcessEnv {
+  const env = Object.fromEntries(passthrough.map(key => [key, process.env[key]]).filter(entry => entry[1]));
+  if (commandPaths.length) env[pathKey] = [...commandPaths, env[pathKey]].filter(Boolean).join(path.delimiter);
+  return env;
 }
 
 async function existing(candidates: string[]) {

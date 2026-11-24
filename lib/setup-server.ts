@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from 'node:child_process';
-import { randomBytes, timingSafeEqual } from 'node:crypto';
-import { lstat, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { lstat, mkdir, readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import os from 'node:os';
 import { setTimeout as wait } from 'node:timers/promises';
@@ -9,8 +9,9 @@ import { endpoint } from './config.ts';
 import { client, page, stylesheet } from './setup-page.ts';
 import { makeProfile, modelsFromCatalog, parsePermissions, parseTelegram, validKey, type Agent } from './setup-profiles.ts';
 import { findRuntime, installRuntime, prepareDesktop, openBrowser, runtimeEnvironment } from './setup-runtime.ts';
+import { configureAutostart, saveSetupFile } from './setup-autostart.ts';
 
-const systemRoot = path.join(os.homedir(), '.config', 'cbgpu-agent', 'setup');
+export const systemRoot = path.join(os.homedir(), '.config', 'cbgpu-agent', 'setup');
 const parseAgent = (value: unknown): Agent => {
   if (value !== 'openclaw' && value !== 'hermes') throw new Error('설치할 에이전트를 선택해 주세요.');
   return value;
@@ -45,7 +46,7 @@ async function modelCatalog(key: unknown) {
 }
 
 export function startSetup({
-  root = systemRoot, browser = true, getModels = modelCatalog,
+  root = systemRoot, browser = true, port = 0, getModels = modelCatalog, enroll = configureAutostart,
   install = installRuntime, runtime = findRuntime, fetchBot = fetch, prepareScreen = prepareDesktop,
 } = {}) {
   const ticket = randomBytes(24).toString('base64url');
@@ -53,9 +54,7 @@ export function startSetup({
   let busy = false;
   let running: ChildProcess | undefined;
   async function save(folder: string, filename: string, value: unknown, text = false) {
-    const temporary = path.join(folder, '.' + filename + '.' + randomBytes(8).toString('hex'));
-    await writeFile(temporary, text ? String(value) : JSON.stringify(value, null, 2) + '\n', { flag: 'wx', mode: 0o600 });
-    await rename(temporary, path.join(folder, filename));
+    await saveSetupFile(folder, filename, text ? String(value) : JSON.stringify(value, null, 2) + '\n');
   }
   async function read(folder: string, filename: string) {
     return JSON.parse(await readFile(path.join(folder, filename), 'utf8'));
@@ -70,6 +69,8 @@ export function startSetup({
       const model = models.find(entry => entry.id === payload.model);
       if (!model) throw new Error('CBGPU에서 사용할 수 있는 모델을 선택해 주세요.');
       const telegram = parseTelegram(payload.token, payload.user);
+      const autoStart = payload.autoStart === true;
+      if (autoStart && !telegram) throw new Error('자동 시작을 켜려면 Telegram 봇을 먼저 연결해 주세요.');
       const folder = path.join(root, agent);
       const permissions = parsePermissions(payload.permissions);
       const profile = makeProfile(agent, model, folder, telegram, permissions);
@@ -90,6 +91,11 @@ export function startSetup({
       const accountInstructions = permissions.accounts
         ? 'When the owner asks you to sign in or create an account, use the enabled browser or desktop tools for the named app or site, including services you have not used before. Complete and submit the requested forms. Fill secrets through the local credential vault when available, or hand the form back to the owner for secret entry. Hand off provider verification steps, such as CAPTCHA or multi-factor authentication, to the owner.'
         : 'Ask the owner to enable account tasks before submitting login or signup forms.';
+      const skillInstructions = permissions.skills
+        ? 'When the owner’s task needs a missing skill, search and review its source and requested access before installing it in this profile. Use the runtime’s built-in trust checks. Do not override blocked installs. Report the skill and version you installed. ' + (agent === 'openclaw'
+          ? 'Use openclaw skills search, verify, and install in the workspace. Pick a specific available version.'
+          : 'Use hermes skills search and install. Use skill_manage to save useful local procedures.')
+        : 'Ask the owner to enable skill installation before adding external skills.';
       const file = path.join(workspace, 'AGENTS.md');
       let existing = '';
       try {
@@ -99,13 +105,15 @@ export function startSetup({
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
       }
-      const grant = '<!-- cbgpu-setup:start -->\n' + accountInstructions + '\n<!-- cbgpu-setup:end -->';
+      const grant = '<!-- cbgpu-setup:start -->\n' + accountInstructions + '\n\n' + skillInstructions + '\n<!-- cbgpu-setup:end -->';
       const bound = /<!-- cbgpu-setup:start -->[\s\S]*?<!-- cbgpu-setup:end -->/;
       const instructions = bound.test(existing) ? existing.replace(bound, grant) : existing.trimEnd() + '\n\n' + grant + '\n';
       await save(workspace, 'AGENTS.md', instructions, true);
       await save(folder, profile.filename, profile.config);
       await save(folder, 'credentials.json', { key: payload.key, telegram, permissions });
-      await save(root, 'selection.json', { agent });
+      const prior = await read(root, 'selection.json').catch(() => null);
+      if (autoStart || prior?.autoStart === true) await enroll(root, autoStart);
+      await save(root, 'selection.json', { agent, autoStart });
       return { ready: true };
     } finally { busy = false; }
   }
@@ -122,8 +130,11 @@ export function startSetup({
         typeof sudoPassword !== 'string' || sudoPassword.length > 256 || sudoPassword.includes('\0'))) {
       throw new Error('이 프로필에서는 sudo 비밀번호를 사용할 수 없어요.');
     }
+    const toolPaths = agent === 'openclaw'
+      ? [path.dirname(installed.program), path.join(folder, 'runtime', 'node_modules', '.bin')]
+      : [path.dirname(installed.prefix.at(-1)?.endsWith('.ps1') ? installed.prefix.at(-1)! : installed.program)];
     const env = {
-      ...runtimeEnvironment(), CBGPU_API_KEY: key,
+      ...runtimeEnvironment(toolPaths.filter(item => path.isAbsolute(item))), CBGPU_API_KEY: key,
       ...(agent === 'openclaw'
         ? { OPENCLAW_STATE_DIR: folder, OPENCLAW_CONFIG_PATH: path.join(folder, configFile) }
         : { HERMES_HOME: folder, HERMES_CONFIG_BACKEND: 'file',
@@ -156,6 +167,20 @@ export function startSetup({
         : null,
     };
   }
+  async function resumeSaved() {
+    const current = await read(root, 'selection.json').catch(() => null);
+    if (current?.autoStart !== true) return false;
+    if (running) return true;
+    if (busy) throw new Error('에이전트를 시작하는 중이에요.');
+    busy = true;
+    try {
+      const agent = parseAgent(current.agent);
+      const { telegram } = await read(path.join(root, agent), 'credentials.json');
+      if (!telegram) return false;
+      await launch(agent, undefined);
+      return true;
+    } finally { busy = false; }
+  }
   const assets = new Map([
     ['/', ['text/html; charset=utf-8', page]],
     ['/setup.css', ['text/css; charset=utf-8', stylesheet]],
@@ -172,6 +197,10 @@ export function startSetup({
     response.setHeader('content-security-policy', "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
     const pathname = request.url ?? '/';
     if (request.headers.host !== new URL(origin).host) return reply(response, 403, { error: '설치 창을 다시 열어 주세요.' });
+    const challenge = /^\/session-check\?challenge=([0-9a-f]{32})$/.exec(pathname)?.[1];
+    if (request.method === 'GET' && challenge) {
+      return reply(response, 200, { proof: createHmac('sha256', ticket).update(challenge).digest('hex') });
+    }
     const asset = request.method === 'GET' && assets.get(pathname);
     if (asset) { response.writeHead(200, { 'content-type': asset[0] }); response.end(asset[1]); return; }
     const token = request.headers['x-cbgpu-setup'];
@@ -184,14 +213,32 @@ export function startSetup({
       let result;
       switch (pathname) {
         case '/status': {
-          const saved = (await read(root, 'selection.json').catch(() => null))?.agent;
+          const selection = await read(root, 'selection.json').catch(() => null);
+          const saved = selection?.agent;
           const current = saved === 'openclaw' || saved === 'hermes' ? await read(path.join(root, saved), 'credentials.json').catch(() => null) : null;
           const permissions = parsePermissions(current?.permissions);
-          result = { saved: current ? saved : '', permissions, platform: process.platform };
+          result = { saved: current ? saved : '', permissions, platform: process.platform,
+            running: Boolean(running), autoStart: Boolean(current?.telegram && selection?.autoStart), telegram: Boolean(current?.telegram) };
           break;
         }
         case '/models': result = { models: await getModels(payload.key) }; break;
         case '/install': result = await configure(payload); break;
+        case '/resume': result = { started: await resumeSaved() }; break;
+        case '/autostart': {
+          if (busy) throw new Error('설치나 시작이 끝난 뒤 다시 설정해 주세요.');
+          busy = true;
+          try {
+            const current = await read(root, 'selection.json');
+            const agent = parseAgent(current.agent);
+            const { telegram } = await read(path.join(root, agent), 'credentials.json');
+            const autoStart = payload.enabled === true;
+            if (autoStart && !telegram) throw new Error('자동 시작을 켜려면 Telegram 봇을 먼저 연결해 주세요.');
+            await enroll(root, autoStart);
+            await save(root, 'selection.json', { agent, autoStart });
+            result = { autoStart };
+          } finally { busy = false; }
+          break;
+        }
         case '/start':
           if (busy || running) throw new Error('이미 시작 중이거나 실행 중이에요.');
           busy = true;
@@ -219,15 +266,15 @@ export function startSetup({
     }
   });
   server.on('close', () => running?.kill());
-  return new Promise<{ url: string; server: typeof server }>((resolve, reject) => {
+  return new Promise<{ url: string; server: typeof server; resumeSaved: typeof resumeSaved }>((resolve, reject) => {
     server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
+    server.listen(port, '127.0.0.1', () => {
       const address = server.address();
       if (!address || typeof address === 'string') { reject(new Error('설치 창을 열지 못했어요.')); return; }
       origin = 'http://127.0.0.1:' + address.port;
       const url = origin + '/#' + ticket;
       if (browser) openBrowser(url);
-      resolve({ url, server });
+      resolve({ url, server, resumeSaved });
     });
   });
 }

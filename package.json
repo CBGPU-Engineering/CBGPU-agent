@@ -1,6 +1,6 @@
 {
   "name": "@cbgpu-engineering/agent",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "CBGPU coding agent powered by the MIT-licensed OpenCode engine",
   "type": "module",
   "bin": {

@@ -197,6 +197,10 @@ check the available models. Qwen3.8 is selected first when the API reports a
 compatible model. OpenClaw needs 16,000 context tokens. Hermes needs 64,000.
 OpenClaw computer use additionally requires a model with image input.
 
+- Choose **OpenClaw** for tasks that move between websites and applications.
+- Choose **Hermes** for longer workflows you want to resume and procedures
+  you want the agent to retain as reusable skills.
+
 Each agent uses a separate CBGPU profile. Choose the access you need for files,
 terminal, browser, desktop, scheduled work, and messaging. Terminal and desktop
 access can reach data available to the operating system user. Stop the agent in
@@ -214,10 +218,20 @@ access is enabled. Enter the password into the local setup window when starting
 Hermes. The installer passes it to the running process. Hermes still applies
 its command approval settings.
 
-Telegram setup uses a bot from [BotFather](https://t.me/BotFather) and your
+Both agents accept tasks through a private Telegram bot. Setup uses a bot
+from [BotFather](https://t.me/BotFather) and your
 numeric Telegram user ID. The installer checks the bot's identity. Start the
 agent and open a private conversation with that bot. The computer must stay
 online to receive messages.
+
+Enable **컴퓨터에 로그인하면 자동 시작** to start the saved Telegram agent when
+you sign in. This uses the current user's desktop startup settings. Open the
+setup screen again to stop the running agent or turn off future automatic
+starts. Enter the sudo password manually for a session that needs it.
+
+Enable **필요한 스킬 설치** and shell access to let the agent look up and install
+skills for its profile. The runtimes apply their own skill trust checks and
+command approval rules.
 
 Desktop control follows the operating system's permissions. Follow the
 [OpenClaw computer-use guide](https://docs.openclaw.ai/nodes/computer-use) or the
