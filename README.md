@@ -25,6 +25,22 @@ cd path/to/your/project
 cbgpu
 ```
 
+### Install from GitHub Packages
+
+If you have access to the organization's npm package, use the GitHub registry.
+Authenticate using a GitHub personal access token with `read:packages` and
+keep it in your user npm configuration.
+
+```bash
+npm login --scope=@cbgpu-engineering --auth-type=legacy --registry=https://npm.pkg.github.com
+npm install -g @cbgpu-engineering/agent@0.1.0
+cbgpu --help
+```
+
+The GitHub installation command above also works without package registry
+access. Maintainers can publish a new, unused version by running **Publish
+GitHub npm package** from the repository's Actions tab on `main`.
+
 Create a key at [CBGPU AI → API](https://cbgpu.com/ai?tab=api). `cbgpu login`
 asks for it without echoing it and saves it under
 `~/.config/cbgpu-agent/credentials.json` with permissions `600`.

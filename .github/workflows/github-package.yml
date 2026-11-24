@@ -1,0 +1,49 @@
+name: Publish GitHub npm package
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: github-npm-package
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 22
+          registry-url: https://npm.pkg.github.com
+          scope: '@cbgpu-engineering'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - run: npm run check
+      - run: npm test
+      - name: Pack and test the installable artifact
+        run: |
+          mkdir -p "$RUNNER_TEMP/package" "$RUNNER_TEMP/install"
+          npm pack --ignore-scripts --pack-destination "$RUNNER_TEMP/package"
+          npm install --no-audit --no-fund --prefix "$RUNNER_TEMP/install" "$RUNNER_TEMP"/package/*.tgz
+          "$RUNNER_TEMP/install/node_modules/.bin/cbgpu" --help
+          OPENCODE_DISABLE_AUTOUPDATE=1 "$RUNNER_TEMP/install/node_modules/.bin/opencode" --version
+      - name: Publish the verified artifact
+        run: npm publish "$RUNNER_TEMP"/package/*.tgz --ignore-scripts --registry=https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Verify the published version
+        run: |
+          package=$(node -p 'require("./package.json").name + "@" + require("./package.json").version')
+          npm view "$package" name version dist.integrity --registry=https://npm.pkg.github.com
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
