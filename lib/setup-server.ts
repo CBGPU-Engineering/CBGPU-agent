@@ -10,6 +10,7 @@ import { client, page, stylesheet } from './setup-page.ts';
 import { makeProfile, modelsFromCatalog, parsePermissions, parseTelegram, validKey, type Agent } from './setup-profiles.ts';
 import { findRuntime, installRuntime, prepareDesktop, openBrowser, runtimeEnvironment } from './setup-runtime.ts';
 import { configureAutostart, saveSetupFile } from './setup-autostart.ts';
+import { readSetupLogo, setupLogos } from './setup-assets.ts';
 
 export const systemRoot = path.join(os.homedir(), '.config', 'cbgpu-agent', 'setup');
 const parseAgent = (value: unknown): Agent => {
@@ -194,7 +195,7 @@ export function startSetup({
     response.setHeader('cache-control', 'no-store');
     response.setHeader('referrer-policy', 'no-referrer');
     response.setHeader('x-content-type-options', 'nosniff');
-    response.setHeader('content-security-policy', "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
+    response.setHeader('content-security-policy', "default-src 'none'; style-src 'self'; script-src 'self'; connect-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'none'");
     const pathname = request.url ?? '/';
     if (request.headers.host !== new URL(origin).host) return reply(response, 403, { error: '설치 창을 다시 열어 주세요.' });
     const challenge = /^\/session-check\?challenge=([0-9a-f]{32})$/.exec(pathname)?.[1];
@@ -203,6 +204,14 @@ export function startSetup({
     }
     const asset = request.method === 'GET' && assets.get(pathname);
     if (asset) { response.writeHead(200, { 'content-type': asset[0] }); response.end(asset[1]); return; }
+    const logo = request.method === 'GET' && setupLogos.find(file => pathname === '/marks/' + file);
+    if (logo) {
+      const data = await readSetupLogo(logo).catch(() => null);
+      if (!data) { response.writeHead(404); response.end(); return; }
+      response.writeHead(200, { 'content-type': 'image/png' });
+      response.end(data);
+      return;
+    }
     const token = request.headers['x-cbgpu-setup'];
     if (request.method !== 'POST' || request.headers.origin !== origin || typeof token !== 'string' ||
         Buffer.byteLength(token) !== Buffer.byteLength(ticket) || !timingSafeEqual(Buffer.from(token), Buffer.from(ticket))) {

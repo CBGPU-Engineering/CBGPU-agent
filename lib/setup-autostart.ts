@@ -2,9 +2,10 @@ import { createHash, randomBytes } from 'node:crypto';
 import { lstat, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { readSetupLogo, setupLogos } from './setup-assets.ts';
 
 const runtimeModules = [
-  'config.js', 'setup-autostart.js', 'setup-node.js', 'setup-page.js', 'setup-process.js',
+  'config.js', 'setup-assets.js', 'setup-autostart.js', 'setup-node.js', 'setup-page.js', 'setup-process.js',
   'setup-profiles.js', 'setup-runtime.js', 'setup-server.js',
 ];
 
@@ -60,11 +61,14 @@ export async function configureAutostart(root: string, enabled: boolean) {
   let script = path.join(root, 'setup-process.js');
   if (enabled) {
     const modules = await Promise.all(runtimeModules.map(file => readFile(new URL('./' + file, import.meta.url))));
+    const logos = await Promise.all(setupLogos.map(readSetupLogo));
     const version = createHash('sha256');
-    for (const content of modules) version.update(content);
+    for (const content of [...modules, ...logos]) version.update(content);
     const folder = path.join(root, 'startup-runtime', version.digest('hex').slice(0, 20));
-    await mkdir(folder, { recursive: true, mode: 0o700 });
+    const assets = path.join(folder, 'setup-assets');
+    await mkdir(assets, { recursive: true, mode: 0o700 });
     await Promise.all(runtimeModules.map((file, index) => saveSetupFile(folder, file, modules[index])));
+    await Promise.all(setupLogos.map((file, index) => saveSetupFile(assets, file, logos[index])));
     await saveSetupFile(folder, 'package.json', '{"type":"module","private":true}\n');
     script = path.join(folder, 'setup-process.js');
   }

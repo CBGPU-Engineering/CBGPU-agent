@@ -81,7 +81,14 @@ test('loopback setup verifies origin and ticket, preserves runtime settings and 
     const page = await fetch(origin);
     assert.equal(page.status, 200);
     assert.match(page.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/);
-    assert.doesNotMatch(await page.text(), /cbgpu_ai_fixture_token/);
+    const html = await page.text();
+    assert.doesNotMatch(html, /cbgpu_ai_fixture_token/);
+    assert.match(html, /OpenClaw와 Hermes 모두 Telegram에서 작업을 맡길 수 있어요/);
+    for (const logo of ['openclaw', 'hermes']) {
+      const response = await fetch(origin + '/marks/' + logo + '.png');
+      assert.equal(response.headers.get('content-type'), 'image/png');
+      assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+    }
   } finally {
     await new Promise<void>(resolve => server.close(() => resolve()));
     await rm(folder, { recursive: true, force: true });

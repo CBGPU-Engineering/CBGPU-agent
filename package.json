@@ -33,6 +33,7 @@
   "files": [
     "dist/bin",
     "dist/lib",
+    "assets/setup",
     "LICENSE",
     "OPENCODE-LICENSE",
     "README.md"

@@ -7,8 +7,8 @@ export const page = '<!doctype html>' + String.raw`
 <form id="setup">
 <section><h2>어떤 에이전트를 설치할까요?</h2>
 <div class="choices">
-<label><input type="radio" name="agent" value="openclaw" checked> <span><strong>OpenClaw</strong><small>브라우저와 여러 앱을 오가며 처리하는 작업이 많을 때 골라요.</small></span></label>
-<label><input type="radio" name="agent" value="hermes"> <span><strong>Hermes Agent</strong><small>긴 작업의 맥락을 이어가거나 반복하는 작업을 스킬로 저장할 때 골라요.</small></span></label>
+<label><input type="radio" name="agent" value="openclaw" checked> <img class="agent-mark" src="/marks/openclaw.png" alt="" width="42" height="42"> <span><strong>OpenClaw</strong><small>브라우저와 여러 앱을 오가며 처리하는 작업이 많을 때 골라요.</small></span></label>
+<label><input type="radio" name="agent" value="hermes"> <img class="agent-mark" src="/marks/hermes.png" alt="" width="42" height="42"> <span><strong>Hermes Agent</strong><small>긴 작업의 맥락을 이어가거나 반복하는 작업을 스킬로 저장할 때 골라요.</small></span></label>
 </div><p class="help">OpenClaw와 Hermes 모두 Telegram에서 작업을 맡길 수 있어요.</p></section>
 <section><h2>CBGPU에 연결하기</h2>
 <label for="key">CBGPU API 키</label>
@@ -66,6 +66,7 @@ h2{font-size:1.22rem;margin:0 0 12px;letter-spacing:-.025em}p{margin:8px 0;color
 section{padding:24px 0;border-bottom:1px solid var(--border)}
 .permissions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}.permissions label{display:flex;gap:9px;padding:10px 4px;cursor:pointer}.permissions input{margin:3px 0 0}.permissions small{font-weight:400}.choices,.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.choices>label{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--border);border-radius:13px;padding:13px 12px;cursor:pointer}.choices>label:has(:checked){border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
 input[type=checkbox],input[type=radio]{accent-color:var(--blue);width:18px;height:18px;margin:0;flex:none}
+.agent-mark{flex:none;object-fit:contain}
 small{display:block;color:var(--soft);font-size:.87rem;margin-top:4px}.optional,.help{font-weight:400;font-size:.9rem;color:var(--soft)}
 label:not(.agree){font-weight:650}input:not([type=radio],[type=checkbox]),select{display:block;width:100%;min-height:46px;margin:6px 0 12px;padding:8px 11px;border:1px solid var(--border);border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
 a{color:var(--blue);font-weight:650;text-underline-offset:3px}.inline,footer{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.inline{justify-content:space-between;margin:0 0 14px}

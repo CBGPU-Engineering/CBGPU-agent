@@ -201,6 +201,10 @@ OpenClaw computer use additionally requires a model with image input.
 - Choose **Hermes** for longer workflows you want to resume and procedures
   you want the agent to retain as reusable skills.
 
+The installer includes the app icons from [OpenClaw](https://github.com/openclaw/openclaw)
+and [Hermes Agent](https://github.com/NousResearch/hermes-agent).
+Their original notices are bundled in `assets/setup`.
+
 Each agent uses a separate CBGPU profile. Choose the access you need for files,
 terminal, browser, desktop, scheduled work, and messaging. Terminal and desktop
 access can reach data available to the operating system user. Stop the agent in
