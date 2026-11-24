@@ -5,7 +5,7 @@ import { endpoint } from './config.ts';
 export type Agent = 'openclaw' | 'hermes';
 export type Model = { id: string; label: string; context: number; output: number; vision: boolean };
 export type Telegram = { token: string; userId: string };
-export const capabilityNames = ['read', 'write', 'shell', 'browser', 'screen', 'schedule', 'send', 'outside', 'vault', 'sudo', 'accounts'] as const;
+export const capabilityNames = ['read', 'write', 'shell', 'browser', 'screen', 'schedule', 'send', 'outside', 'vault', 'sudo', 'accounts', 'skills'] as const;
 export type Permissions = Partial<Record<(typeof capabilityNames)[number], boolean>>;
 export function parsePermissions(value: unknown): Permissions {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
@@ -52,6 +52,7 @@ export function makeProfile(agent: Agent, model: Model, root: string, telegram: 
   if (permissions.sudo && (agent !== 'hermes' || !permissions.shell || !['linux','darwin'].includes(process.platform))) throw new Error('sudo 인증은 Linux·macOS의 Hermes에서 명령 실행을 켠 뒤 사용할 수 있어요.');
   if (permissions.vault && (agent !== 'hermes' || !permissions.browser)) throw new Error('저장된 로그인은 Hermes의 브라우저 조작과 함께 사용할 수 있어요.');
   if (permissions.accounts && !permissions.browser && !permissions.screen) throw new Error('로그인과 가입을 하려면 브라우저 또는 화면 조작 권한을 켜 주세요.');
+  if (permissions.skills && !permissions.shell) throw new Error('스킬을 설치하려면 명령 실행 권한도 켜 주세요.');
   if (permissions.browser && agent === 'hermes' && !permissions.shell) throw new Error('Hermes의 브라우저 조작에는 터미널 권한도 필요해요. 두 권한을 함께 선택해 주세요.');
   if (agent === 'openclaw') {
     const allow = ['session_status',
@@ -88,6 +89,7 @@ export function makeProfile(agent: Agent, model: Model, root: string, telegram: 
     ...(permissions.browser ? ['browser', 'web'] : []),
     ...(permissions.screen ? ['computer_use'] : []),
     ...(permissions.schedule ? ['cronjob'] : []),
+    ...(permissions.skills ? ['skills'] : []),
   ];
   const disabled = [
     ...(!permissions.read ? ['read_file', 'search_files'] : []),

@@ -7,9 +7,9 @@ export const page = '<!doctype html>' + String.raw`
 <form id="setup">
 <section><h2>어떤 에이전트를 설치할까요?</h2>
 <div class="choices">
-<label><input type="radio" name="agent" value="openclaw" checked> <span><strong>OpenClaw</strong><small>브라우저와 메신저로 작업하기</small></span></label>
-<label><input type="radio" name="agent" value="hermes"> <span><strong>Hermes Agent</strong><small>긴 대화와 반복 작업 이어가기</small></span></label>
-</div></section>
+<label><input type="radio" name="agent" value="openclaw" checked> <img class="agent-mark" src="/marks/openclaw.png" alt="" width="42" height="42"> <span><strong>OpenClaw</strong><small>브라우저와 여러 앱을 오가며 처리하는 작업이 많을 때 골라요.</small></span></label>
+<label><input type="radio" name="agent" value="hermes"> <img class="agent-mark" src="/marks/hermes.png" alt="" width="42" height="42"> <span><strong>Hermes Agent</strong><small>긴 작업의 맥락을 이어가거나 반복하는 작업을 스킬로 저장할 때 골라요.</small></span></label>
+</div><p class="help">OpenClaw와 Hermes 모두 Telegram에서 작업을 맡길 수 있어요.</p></section>
 <section><h2>CBGPU에 연결하기</h2>
 <label for="key">CBGPU API 키</label>
 <input id="key" type="password" autocomplete="off" placeholder="cbgpu_ai_…" spellcheck="false" required>
@@ -21,6 +21,9 @@ export const page = '<!doctype html>' + String.raw`
 <ol><li><a href="https://t.me/BotFather" target="_blank" rel="noreferrer">BotFather</a>에서 <code>/newbot</code>으로 봇을 만들어요.</li><li><a href="https://t.me/userinfobot" target="_blank" rel="noreferrer">UserInfoBot</a>에서 내 숫자 사용자 ID를 확인해요.</li></ol>
 <div class="fields"><div><label for="telegram">봇 토큰</label><input id="telegram" type="password" autocomplete="off" spellcheck="false"></div>
 <div><label for="user">내 사용자 ID</label><input id="user" inputmode="numeric" pattern="[1-9][0-9]{0,15}"></div></div>
+<label class="agree"><input id="autostart" type="checkbox"> <span>컴퓨터에 로그인하면 자동 시작</span></label>
+<p class="help">이 컴퓨터에 로그인하면 에이전트가 켜져요. 컴퓨터가 켜져 있고 인터넷에 연결되어 있어야 Telegram으로 작업을 맡길 수 있어요.</p>
+<button id="save-autostart" type="button" hidden>자동 시작 설정 저장</button>
 </section>
 <section id="permissions"><h2>컴퓨터에서 할 수 있는 일</h2>
 <p>설치한 뒤 켜고 끌 수 있어요. 작업에 필요한 항목만 선택해도 됩니다.</p>
@@ -34,6 +37,7 @@ export const page = '<!doctype html>' + String.raw`
 <label><input type="checkbox" id="p-schedule"> <span>예약 작업<small>내가 정한 시간에 반복 작업을 실행해요.</small></span></label>
 <label><input type="checkbox" id="p-send"> <span>메신저 전송<small>연결한 채널에서 에이전트가 메시지를 보낼 수 있어요.</small></span></label>
 <label><input type="checkbox" id="p-accounts"> <span>로그인·계정 만들기<small>요청한 앱이나 사이트에서 로그인하고 새 계정도 만들어요.</small></span></label>
+<label><input type="checkbox" id="p-skills"> <span>필요한 스킬 설치<small>작업에 필요한 스킬을 찾아 설치해요. 명령 실행 권한이 필요해요.</small></span></label>
 <label><input type="checkbox" id="p-outside"> <span>작업 폴더 밖 파일 접근<small>파일 도구에 더 넓은 범위를 허용해요. 터미널은 운영체제 사용자 권한을 따라요.</small></span></label>
 </div><p class="help">새로운 서비스도 요청할 수 있어요. 이메일 인증이나 사람 확인이 뜨면 해당 앱이나 사이트에서 이어서 진행해 주세요.</p><p id="screen-note" class="help" hidden></p>
 <div id="hermes-options" hidden><h3>로그인과 관리자 작업</h3>
@@ -62,6 +66,7 @@ h2{font-size:1.22rem;margin:0 0 12px;letter-spacing:-.025em}p{margin:8px 0;color
 section{padding:24px 0;border-bottom:1px solid var(--border)}
 .permissions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 14px}.permissions label{display:flex;gap:9px;padding:10px 4px;cursor:pointer}.permissions input{margin:3px 0 0}.permissions small{font-weight:400}.choices,.fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.choices>label{display:flex;align-items:center;gap:9px;background:var(--paper);border:1px solid var(--border);border-radius:13px;padding:13px 12px;cursor:pointer}.choices>label:has(:checked){border-color:var(--blue);box-shadow:inset 0 0 0 1px var(--blue)}
 input[type=checkbox],input[type=radio]{accent-color:var(--blue);width:18px;height:18px;margin:0;flex:none}
+.agent-mark{flex:none;object-fit:contain}
 small{display:block;color:var(--soft);font-size:.87rem;margin-top:4px}.optional,.help{font-weight:400;font-size:.9rem;color:var(--soft)}
 label:not(.agree){font-weight:650}input:not([type=radio],[type=checkbox]),select{display:block;width:100%;min-height:46px;margin:6px 0 12px;padding:8px 11px;border:1px solid var(--border);border-radius:9px;background:var(--paper);color:var(--ink);font:inherit}
 a{color:var(--blue);font-weight:650;text-underline-offset:3px}.inline,footer{display:flex;flex-wrap:wrap;gap:10px;align-items:center}.inline{justify-content:space-between;margin:0 0 14px}
@@ -79,7 +84,7 @@ history.replaceState(null, '', location.pathname);
 const get = id => document.getElementById(id);
 const form = get('setup'), select = get('model'), key = get('key');
 const status = get('status'), verify = get('verify'), apply = get('apply');
-const capabilityNames = ['read','write','shell','browser','screen','schedule','send','outside','accounts'];
+const capabilityNames = ['read','write','shell','browser','screen','schedule','send','outside','accounts','skills'];
 let needsSudo = false, platform = '', catalog = [], busy = false, running = false, saved = '';
 const selected = () => new FormData(form).get('agent');
 const minimum = {openclaw:16000,hermes:64000};
@@ -136,7 +141,7 @@ verify.addEventListener('click', async () => {
 form.addEventListener('submit', async event => {
   event.preventDefault();
   if (busy || !form.reportValidity() || !select.value) return;
-  const data = { agent:selected(), model:select.value, key:key.value, token:get('telegram').value.trim(),
+  const data = { agent:selected(), model:select.value, key:key.value, token:get('telegram').value.trim(), autoStart: get('autostart').checked,
     user:get('user').value.trim(), accepted:get('risk').checked,
     permissions:Object.fromEntries([...capabilityNames,'vault','sudo'].map(name => [name, get('p-' + name).checked])) };
   busy = true; renderModels();
@@ -144,6 +149,7 @@ form.addEventListener('submit', async event => {
   try {
     await request('/install', data);
     saved = data.agent; needsSudo = data.permissions.sudo;
+    get('save-autostart').hidden = !data.token;
     key.value = ''; get('telegram').value = ''; catalog = [];
     get('start').hidden = false;
     message('설치와 설정을 마쳤어요. 에이전트를 시작해 주세요.');
@@ -169,12 +175,27 @@ get('stop').addEventListener('click', async () => {
   try { await request('/stop'); running = false; get('start').hidden = false; get('stop').hidden = true; renderModels(); message('에이전트를 멈췄어요.'); }
   catch (error) { message(error.message, true); }
 });
+get('save-autostart').addEventListener('click', async event => {
+  const button = event.currentTarget;
+  button.disabled = true;
+  try {
+    const result = await request('/autostart', {enabled: get('autostart').checked});
+    message(result.autoStart ? '다음에 컴퓨터에 로그인하면 자동으로 시작해요.' : '자동 시작을 껐어요.');
+  } catch (error) { message(error.message, true); }
+  finally { button.disabled = false; }
+});
 request('/status').then(result => {
   saved = result.saved; needsSudo = Boolean(result.permissions.sudo); platform = result.platform;
   if (saved) {
     for (const radio of form.querySelectorAll('[name=agent]')) radio.checked = radio.value === saved;
     for (const name of [...capabilityNames, 'vault', 'sudo']) get('p-' + name).checked = result.permissions[name] === true;
   }
-  get('start').hidden = !saved; renderModels();
+  running = result.running;
+  get('autostart').checked = result.autoStart;
+  get('save-autostart').hidden = !result.telegram;
+  get('start').hidden = !saved || running;
+  get('stop').hidden = !running;
+  if (running) message('에이전트가 실행 중이에요.');
+  renderModels();
 }).catch(error => message(error.message, true));
 `;

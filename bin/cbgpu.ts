@@ -4,10 +4,9 @@ const baseURL=process.env.CBGPU_BASE_URL||endpoint;const url=new URL(baseURL);if
 const dir=path.join(os.homedir(),'.config/cbgpu-agent'),file=path.join(dir,'credentials.json'),args=process.argv.slice(2);
 function read(){try{return JSON.parse(fs.readFileSync(file,'utf8'))}catch{return{}}}
 if(args[0]==='setup'){
- const {startSetup}=await import('../lib/setup-server.ts');
- const {url,server}=await startSetup();
- console.log('CBGPU 에이전트 설정을 브라우저에서 열었어요.\n'+url+'\n닫으려면 Ctrl+C를 눌러 주세요.');
- for(const signal of ['SIGINT','SIGTERM'] as const)process.on(signal,()=>{server.close();server.closeAllConnections()});
+ const {runSetupProcess}=await import('../lib/setup-process.ts');
+ const url=await runSetupProcess();
+ console.log('CBGPU 에이전트 설정을 브라우저에서 열었어요.\n'+url);
 }else if(args[0]==='--help'||args[0]==='help'){console.log('CBGPU Agent · powered by OpenCode (MIT)\n\ncbgpu setup             Install and connect OpenClaw or Hermes\ncbgpu login             Save your CBGPU AI key privately\ncbgpu                   Open the interactive coding agent\ncbgpu run "task"         Run a coding task\ncbgpu models            List CBGPU models\ncbgpu logout            Remove the local saved key\n\nCreate/revoke keys: https://cbgpu.com/ai?tab=api\nFiles and commands execute on YOUR computer, with approval prompts.\nGPU inference runs on CBGPU when an unreserved GPU is available.');process.exit(0)}
 if(args[0]==='logout'){fs.rmSync(file,{force:true});console.log('Local key removed. Revoke the server key at https://cbgpu.com/ai?tab=api if needed.');process.exit(0)}
 if(args[0]==='login'){
